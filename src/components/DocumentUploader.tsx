@@ -91,16 +91,22 @@ const DocumentUploader = ({
   const performOcr = async (file: File) => {
     try {
       setProgress(10);
-      const worker = await createWorker('eng');
+      // Fix: Pass an object with the 'logger' property set to false and add the 'lang' property
+      const worker = await createWorker({
+        logger: progress => {
+          console.log('OCR Progress:', progress);
+        },
+        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+        lang: 'eng'
+      });
+      
       setProgress(20);
       
       // Convert the file to an image format that Tesseract can process
       const fileUrl = URL.createObjectURL(file);
       setProgress(30);
       
-      // Process only the first 30% of the page (conditional OCR)
-      // Note: This is a simplification, in a real implementation you'd need to 
-      // manipulate the image to extract just the top portion
+      // Process the document
       const { data } = await worker.recognize(fileUrl);
       setProgress(60);
       
