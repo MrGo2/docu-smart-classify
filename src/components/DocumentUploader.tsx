@@ -91,16 +91,20 @@ const DocumentUploader = ({
   const performOcr = async (file: File) => {
     try {
       setProgress(10);
-      // Fix: Pass an object with the 'logger' property set to false and add the 'lang' property
+      // Fix: Update worker creation to use the correct properties according to Tesseract.js v4
       const worker = await createWorker({
         logger: progress => {
           console.log('OCR Progress:', progress);
         },
-        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-        lang: 'eng'
+        // Use correct WorkerOptions properties
+        // The language is set using initialize() method, not in createWorker options
       });
       
       setProgress(20);
+      
+      // Initialize the worker with the language
+      await worker.loadLanguage('eng');
+      await worker.initialize('eng');
       
       // Convert the file to an image format that Tesseract can process
       const fileUrl = URL.createObjectURL(file);
