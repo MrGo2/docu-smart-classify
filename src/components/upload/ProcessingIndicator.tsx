@@ -1,13 +1,25 @@
 
 import { Progress } from "@/components/ui/progress";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ProcessingIndicatorProps {
   isProcessing: boolean;
   progress: number;
+  error?: string;
 }
 
-const ProcessingIndicator = ({ isProcessing, progress }: ProcessingIndicatorProps) => {
-  if (!isProcessing) return null;
+const ProcessingIndicator = ({ isProcessing, progress, error }: ProcessingIndicatorProps) => {
+  if (!isProcessing && !error) return null;
+  
+  if (error) {
+    return (
+      <Alert variant="destructive" className="mt-4">
+        <AlertCircle className="h-4 w-4 mr-2" />
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
   
   return (
     <div className="space-y-2">
