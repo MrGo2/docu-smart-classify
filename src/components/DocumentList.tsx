@@ -1,10 +1,22 @@
+
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Eye, Loader2 } from "lucide-react";
+import { Eye, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import DocumentViewer from "./DocumentViewer";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 interface Document {
   id: string;
@@ -26,6 +38,9 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
   const [loading, setLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -51,6 +66,44 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
   const handleViewDocument = (document: Document) => {
     setSelectedDocument(document);
     setViewerOpen(true);
+  };
+
+  const handleDeleteClick = (document: Document) => {
+    setDocumentToDelete(document);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!documentToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      // 1. Delete the file from storage
+      const { error: storageError } = await supabase.storage
+        .from("documents")
+        .remove([documentToDelete.storage_path]);
+        
+      if (storageError) throw storageError;
+      
+      // 2. Delete the document entry from the database
+      const { error: dbError } = await supabase
+        .from("documents")
+        .delete()
+        .eq("id", documentToDelete.id);
+        
+      if (dbError) throw dbError;
+      
+      // 3. Update the UI
+      setDocuments(documents.filter(doc => doc.id !== documentToDelete.id));
+      toast.success(`"${documentToDelete.filename}" deleted successfully`);
+    } catch (error) {
+      console.error("Error deleting document:", error);
+      toast.error(`Failed to delete document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setDocumentToDelete(null);
+    }
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -92,7 +145,7 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
                 <TableHead>Size</TableHead>
                 <TableHead>Classification</TableHead>
                 <TableHead>Processed Date</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead className="w-[160px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -106,14 +159,25 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
                   </TableCell>
                   <TableCell>{formatDate(doc.created_at)}</TableCell>
                   <TableCell>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleViewDocument(doc)}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      View
-                    </Button>
+                    <div className="flex space-x-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleViewDocument(doc)}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleDeleteClick(doc)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -122,6 +186,7 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
         </div>
       )}
 
+      {/* Document Viewer Dialog */}
       <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
         <DialogContent className="max-w-4xl h-[80vh] p-0">
           {selectedDocument && (
@@ -129,6 +194,39 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm deletion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{documentToDelete?.filename}"? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
