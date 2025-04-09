@@ -1,10 +1,9 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DocumentUploader from "@/components/DocumentUploader";
 import ApiKeyManager from "@/components/ApiKeyManager";
 import DocumentList from "@/components/DocumentList";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);

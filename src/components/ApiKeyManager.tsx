@@ -1,204 +1,245 @@
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "@/components/ui/sonner";
+import { Loader2, Plus, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-type ApiKey = {
+interface ApiKey {
   id: string;
   service: string;
   api_key: string;
   is_default: boolean;
-};
+}
 
 const ApiKeyManager = () => {
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
-  const [newService, setNewService] = useState("openai");
-  const [newApiKey, setNewApiKey] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Fetch stored API keys
-  const fetchApiKeys = async () => {
-    try {
-      const { data, error } = await supabase.from("api_keys").select("*");
-      if (error) throw error;
-      setApiKeys(data || []);
-    } catch (error) {
-      console.error("Error fetching API keys:", error);
-      toast.error("Failed to load API keys");
-    }
-  };
+  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [newKeyData, setNewKeyData] = useState({
+    service: "openai",
+    api_key: "",
+  });
 
   useEffect(() => {
     fetchApiKeys();
   }, []);
 
-  // Save a new API key
-  const handleSaveApiKey = async () => {
-    if (!newApiKey.trim()) {
+  const fetchApiKeys = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("api_keys")
+        .select("*")
+        .order("service", { ascending: true });
+
+      if (error) throw error;
+      setKeys(data || []);
+    } catch (error) {
+      console.error("Error fetching API keys:", error);
+      toast.error("Failed to load API keys");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddKey = async () => {
+    if (!newKeyData.api_key.trim()) {
       toast.error("Please enter an API key");
       return;
     }
 
-    setIsLoading(true);
     try {
-      // Check if this is the first key for this service, if so mark it as default
-      const existingKeysForService = apiKeys.filter(key => key.service === newService);
-      const isDefault = existingKeysForService.length === 0;
+      setAdding(true);
+
+      // Check if this is the first key for this service (make it default)
+      const isFirstKey = !keys.some(key => key.service === newKeyData.service);
 
       const { error } = await supabase.from("api_keys").insert({
-        service: newService,
-        api_key: newApiKey,
-        is_default: isDefault,
+        service: newKeyData.service,
+        api_key: newKeyData.api_key,
+        is_default: isFirstKey,
       });
 
       if (error) throw error;
 
-      toast.success(`API key for ${newService} saved successfully`);
-      setNewApiKey("");
+      toast.success("API key added successfully");
+      setNewKeyData({ service: "openai", api_key: "" });
       fetchApiKeys();
     } catch (error) {
-      console.error("Error saving API key:", error);
-      toast.error("Failed to save API key");
+      console.error("Error adding API key:", error);
+      toast.error("Failed to add API key");
     } finally {
-      setIsLoading(false);
+      setAdding(false);
     }
   };
 
-  // Set a key as default for its service
   const handleSetDefault = async (id: string, service: string) => {
-    setIsLoading(true);
     try {
-      // First, unset the default flag for all keys of this service
-      await supabase
-        .from("api_keys")
+      // First unset all defaults for this service
+      await supabase.from("api_keys")
         .update({ is_default: false })
         .eq("service", service);
-
+      
       // Then set the selected key as default
-      const { error } = await supabase
-        .from("api_keys")
+      await supabase.from("api_keys")
         .update({ is_default: true })
         .eq("id", id);
 
-      if (error) throw error;
-
-      toast.success(`Default ${service} API key updated`);
+      toast.success("Default API key updated");
       fetchApiKeys();
     } catch (error) {
-      console.error("Error setting default key:", error);
-      toast.error("Failed to update default key");
-    } finally {
-      setIsLoading(false);
+      console.error("Error setting default API key:", error);
+      toast.error("Failed to update default API key");
     }
   };
 
-  // Delete an API key
   const handleDeleteKey = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this API key?")) {
-      return;
-    }
-
-    setIsLoading(true);
     try {
+      // Check if this is the default key
+      const keyToDelete = keys.find(k => k.id === id);
+      
       const { error } = await supabase.from("api_keys").delete().eq("id", id);
       if (error) throw error;
 
       toast.success("API key deleted");
       fetchApiKeys();
+      
+      // If we deleted a default key, we might need to set a new default
+      if (keyToDelete?.is_default) {
+        const remainingKeysForService = keys.filter(k => 
+          k.service === keyToDelete.service && k.id !== id
+        );
+        
+        if (remainingKeysForService.length > 0) {
+          // Set the first remaining key as default
+          await handleSetDefault(remainingKeysForService[0].id, keyToDelete.service);
+        }
+      }
     } catch (error) {
       console.error("Error deleting API key:", error);
       toast.error("Failed to delete API key");
-    } finally {
-      setIsLoading(false);
     }
   };
 
+  const formatKeyDisplay = (key: string): string => {
+    // Display only the first 4 and last 4 characters
+    if (key.length <= 8) return '••••••••';
+    return `${key.substring(0, 4)}••••••${key.substring(key.length - 4)}`;
+  };
+
   return (
-    <div>
-      {/* Add New API Key Form */}
-      <div className="flex flex-col space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-          <div>
-            <Label htmlFor="service">Service</Label>
-            <Select value={newService} onValueChange={setNewService}>
-              <SelectTrigger id="service">
-                <SelectValue placeholder="Select Service" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="openai">OpenAI</SelectItem>
-                <SelectItem value="mistral">Mistral</SelectItem>
-                <SelectItem value="claude">Claude</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="md:col-span-2">
-            <Label htmlFor="apikey">API Key</Label>
-            <div className="flex gap-2">
-              <Input
-                id="apikey"
-                type="password"
-                placeholder="Enter your API key"
-                value={newApiKey}
-                onChange={(e) => setNewApiKey(e.target.value)}
-              />
-              <Button onClick={handleSaveApiKey} disabled={isLoading}>
-                Save
-              </Button>
-            </div>
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-3">
+        <div>
+          <Label htmlFor="service">AI Service</Label>
+          <Select
+            value={newKeyData.service}
+            onValueChange={(value) => setNewKeyData({ ...newKeyData, service: value })}
+          >
+            <SelectTrigger id="service">
+              <SelectValue placeholder="Select service" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="openai">OpenAI</SelectItem>
+              <SelectItem value="mistral">Mistral</SelectItem>
+              <SelectItem value="claude">Claude</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="md:col-span-2">
+          <Label htmlFor="apiKey">API Key</Label>
+          <div className="flex items-center space-x-2">
+            <Input
+              id="apiKey"
+              type="password"
+              placeholder="Enter your API key"
+              value={newKeyData.api_key}
+              onChange={(e) => setNewKeyData({ ...newKeyData, api_key: e.target.value })}
+            />
+            <Button
+              onClick={handleAddKey}
+              disabled={adding || !newKeyData.api_key.trim()}
+            >
+              {adding ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              <span className="hidden md:inline ml-1">Add Key</span>
+            </Button>
           </div>
         </div>
       </div>
-
-      {/* Display Existing API Keys */}
-      {apiKeys.length > 0 && (
-        <div className="mt-6">
-          <h3 className="text-sm font-semibold mb-2">Saved API Keys</h3>
-          <div className="border rounded-md">
-            {apiKeys.map((key) => (
-              <div 
-                key={key.id}
-                className="flex items-center justify-between p-3 border-b last:border-b-0"
-              >
-                <div>
-                  <span className="font-medium capitalize">{key.service}</span>
-                  <span className="ml-2 text-sm text-gray-500">
-                    •••••••{key.api_key.substring(key.api_key.length - 4)}
-                  </span>
-                  {key.is_default && (
-                    <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">
-                      Default
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  {!key.is_default && (
+      
+      {loading ? (
+        <div className="flex justify-center items-center py-4">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          <p>Loading API keys...</p>
+        </div>
+      ) : keys.length === 0 ? (
+        <div className="text-center py-4 text-gray-500">
+          <p>No API keys configured yet</p>
+        </div>
+      ) : (
+        <div className="border rounded-md overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Service</TableHead>
+                <TableHead>API Key</TableHead>
+                <TableHead className="text-center">Default</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {keys.map((key) => (
+                <TableRow key={key.id}>
+                  <TableCell className="font-medium">
+                    {key.service === "openai" && "OpenAI"}
+                    {key.service === "mistral" && "Mistral"}
+                    {key.service === "claude" && "Claude"}
+                  </TableCell>
+                  <TableCell className="font-mono">{formatKeyDisplay(key.api_key)}</TableCell>
+                  <TableCell className="text-center">
+                    {key.is_default ? (
+                      <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Default</span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSetDefault(key.id, key.service)}
+                      >
+                        Set Default
+                      </Button>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => handleSetDefault(key.id, key.service)}
-                      disabled={isLoading}
+                      variant="ghost"
+                      onClick={() => handleDeleteKey(key.id)}
                     >
-                      Set Default
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Delete</span>
                     </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => handleDeleteKey(key.id)}
-                    disabled={isLoading}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
+      
+      <div className="text-xs text-gray-500">
+        <p>
+          * API keys are stored directly in your Supabase database. Test an API key by uploading a document.
+        </p>
+      </div>
     </div>
   );
 };

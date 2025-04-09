@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +14,7 @@ interface Document {
   storage_path: string;
   classification: string | null;
   created_at: string;
+  extracted_text: string | null;
 }
 
 interface DocumentListProps {
@@ -27,7 +27,6 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
 
-  // Fetch documents from Supabase
   useEffect(() => {
     const fetchDocuments = async () => {
       setLoading(true);
@@ -54,19 +53,16 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
     setViewerOpen(true);
   };
 
-  // Format file size for display
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + " B";
     else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
     else return (bytes / 1048576).toFixed(1) + " MB";
   };
 
-  // Format date for display
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleString();
   };
 
-  // Get file type display name
   const getFileTypeDisplay = (fileType: string): string => {
     if (fileType.includes("pdf")) return "PDF";
     if (fileType.includes("jpeg") || fileType.includes("jpg")) return "JPEG";

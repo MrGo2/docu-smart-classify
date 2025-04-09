@@ -56,12 +56,12 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       const blob = await response.blob();
       const downloadUrl = URL.createObjectURL(blob);
       
-      const link = document.createElement('a');
+      const link = window.document.createElement('a');
       link.href = downloadUrl;
       link.download = document.filename;
-      document.body.appendChild(link);
+      window.document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      window.document.body.removeChild(link);
       
       // Clean up the object URL
       URL.revokeObjectURL(downloadUrl);
