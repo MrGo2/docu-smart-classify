@@ -7,7 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Loader2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { createWorker } from "tesseract.js";
+import { performOcr, needsOcr } from "@/utils/ocrProcessor";
+import { classifyDocument } from "@/services/aiClassifier";
+import { uploadDocumentToStorage } from "@/services/documentStorage";
 
 interface DocumentUploaderProps {
   isProcessing: boolean;
@@ -33,15 +35,6 @@ const DocumentUploader = ({
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ];
 
-  const getFileExtension = (fileName: string) => {
-    return fileName.split('.').pop()?.toLowerCase() || '';
-  };
-
-  const needsOcr = (file: File) => {
-    const ext = getFileExtension(file.name);
-    return ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'pdf';
-  };
-
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     
@@ -57,7 +50,7 @@ const DocumentUploader = ({
     
     setFile(selectedFile);
     setProgress(0);
-  }, [onProcessingError]);
+  }, [onProcessingError, supportedTypes]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -88,100 +81,6 @@ const DocumentUploader = ({
     }
   };
 
-  const performOcr = async (file: File) => {
-    try {
-      setProgress(10);
-      
-      // Create a worker with proper configuration for Tesseract.js v4
-      const worker = await createWorker({
-        logger: progress => {
-          console.log('OCR Progress:', progress);
-        }
-      });
-      
-      setProgress(20);
-      
-      // Initialize the worker with the language
-      await worker.loadLanguage('eng');
-      await worker.initialize('eng');
-      
-      setProgress(30);
-      
-      // For PDF files, we need special handling
-      if (file.type === 'application/pdf') {
-        // For PDF files, we'll just extract text from the first page
-        // In a real app, you might want to process all pages
-        const pdfText = "PDF text extraction placeholder";
-        await worker.terminate();
-        setProgress(70);
-        return pdfText;
-      } 
-      
-      // For images, use the standard recognition
-      // Convert the file to a data URL that Tesseract can process
-      return new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        
-        reader.onload = async (event) => {
-          try {
-            if (!event.target || !event.target.result) {
-              throw new Error("Failed to read file");
-            }
-            
-            const imageData = event.target.result as string;
-            
-            // Recognize the text in the image
-            const { data } = await worker.recognize(imageData);
-            await worker.terminate();
-            setProgress(70);
-            
-            resolve(data.text);
-          } catch (error) {
-            console.error("OCR processing error:", error);
-            reject(new Error("Failed to extract text from the document"));
-          }
-        };
-        
-        reader.onerror = () => {
-          reject(new Error("Failed to read the file"));
-        };
-        
-        reader.readAsDataURL(file);
-      });
-    } catch (error) {
-      console.error("OCR error:", error);
-      throw new Error("Failed to extract text from the document");
-    }
-  };
-
-  const classifyDocument = async (text: string, apiKey: string, modelService: string) => {
-    try {
-      // Simplified for demo - in a real app you would call the actual AI service API
-      // This function mimics sending text to an AI model for classification
-      setProgress(80);
-      
-      // Simulate AI classification
-      // In a real application, you would make an API call to the selected AI service
-      const classifications = [
-        "Invoice", 
-        "Resume", 
-        "Contract", 
-        "Report", 
-        "Form", 
-        "Receipt", 
-        "Letter"
-      ];
-      const randomClassification = 
-        classifications[Math.floor(Math.random() * classifications.length)];
-      
-      setProgress(90);
-      return randomClassification;
-    } catch (error) {
-      console.error("Classification error:", error);
-      throw new Error("Failed to classify the document");
-    }
-  };
-
   const handleFileUpload = async () => {
     if (!file) return;
     
@@ -197,42 +96,29 @@ const DocumentUploader = ({
       
       setProgress(5);
       
-      // 2. Upload file to Supabase Storage
-      const fileExt = getFileExtension(file.name);
-      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const storagePath = `${fileName}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(storagePath, file);
-        
-      if (uploadError) throw new Error("Failed to upload document");
-      setProgress(20);
-      
-      // 3. Extract text if needed
+      // 2. Extract text if needed using OCR
       let extractedText = "";
       if (needsOcr(file)) {
-        extractedText = await performOcr(file);
+        extractedText = await performOcr(file, setProgress);
       }
       
-      // 4. Classify the document
-      const classification = await classifyDocument(extractedText, apiKey, modelSelection);
-      setProgress(95);
+      // 3. Classify the document using AI
+      const classification = await classifyDocument(
+        extractedText, 
+        apiKey, 
+        modelSelection,
+        setProgress
+      );
       
-      // 5. Save document metadata to the database
-      const { error: insertError } = await supabase.from("documents").insert({
-        filename: file.name,
-        file_type: file.type,
-        file_size: file.size,
-        storage_path: storagePath,
-        classification: classification,
-        extracted_text: extractedText,
-        ocr_processed: needsOcr(file),
-      });
+      // 4. Upload document and save metadata
+      await uploadDocumentToStorage(
+        file, 
+        classification, 
+        extractedText, 
+        needsOcr(file),
+        setProgress
+      );
       
-      if (insertError) throw new Error("Failed to save document metadata");
-      
-      setProgress(100);
       setFile(null);
       onProcessingComplete();
     } catch (error: any) {
