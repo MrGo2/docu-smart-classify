@@ -3,6 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { getFileExtension } from "@/utils/ocrProcessor";
 
 /**
+ * Sanitizes text to remove invalid Unicode escape sequences
+ * that cause PostgreSQL errors
+ */
+const sanitizeText = (text: string): string => {
+  if (!text) return "";
+  
+  // Replace null bytes (\u0000) which cause PostgreSQL errors
+  return text.replace(/\u0000/g, " ");
+};
+
+/**
  * Uploads a file to Supabase storage and saves its metadata
  */
 export const uploadDocumentToStorage = async (
@@ -27,14 +38,16 @@ export const uploadDocumentToStorage = async (
     
     onProgressUpdate(95);
     
-    // 2. Save document metadata to the database
+    // 2. Save document metadata to the database - sanitize text first
+    const sanitizedText = sanitizeText(extractedText);
+    
     const { error: insertError } = await supabase.from("documents").insert({
       filename: file.name,
       file_type: file.type,
       file_size: file.size,
       storage_path: storagePath,
       classification: classification,
-      extracted_text: extractedText,
+      extracted_text: sanitizedText,
       ocr_processed: ocrProcessed,
     });
     
