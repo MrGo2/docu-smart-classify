@@ -1,5 +1,9 @@
 
 import { createWorker } from "tesseract.js";
+import * as pdfjs from 'pdfjs-dist';
+
+// Initialize pdfjs worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
 
 /**
  * Performs OCR on an image or PDF file
@@ -11,7 +15,7 @@ export const performOcr = async (
   try {
     onProgressUpdate(10);
     
-    // Create worker with Tesseract.js v4 configuration
+    // Create worker with Tesseract.js configuration
     const worker = await createWorker({
       logger: progress => {
         console.log('OCR Progress:', progress);
@@ -28,13 +32,7 @@ export const performOcr = async (
     
     // Handle different file types
     if (file.type === 'application/pdf') {
-      // In a real implementation, you'd use PDF.js or similar to extract text
-      // This is a simplified version for the demo
-      console.log("Processing PDF file");
-      const pdfText = "PDF text extraction placeholder - in a real app, you would use PDF.js to extract text from all pages";
-      await worker.terminate();
-      onProgressUpdate(70);
-      return pdfText;
+      return await extractTextFromPdf(file, onProgressUpdate);
     } 
     
     // For images, use standard recognition
@@ -74,6 +72,53 @@ export const performOcr = async (
     throw new Error("Failed to extract text from the document");
   }
 };
+
+/**
+ * Extracts text from a PDF file
+ */
+async function extractTextFromPdf(file: File, onProgressUpdate: (progress: number) => void): Promise<string> {
+  try {
+    // Convert file to ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Load PDF document
+    const pdf = await pdfjs.getDocument(new Uint8Array(arrayBuffer)).promise;
+    const numPages = pdf.numPages;
+    console.log(`PDF loaded. Number of pages: ${numPages}`);
+    
+    onProgressUpdate(40);
+    
+    let fullText = '';
+    
+    // Extract text from each page
+    for (let i = 1; i <= numPages; i++) {
+      // Calculate progress - starting from 40% to 70%
+      const pageProgress = 40 + Math.floor((i / numPages) * 30);
+      onProgressUpdate(pageProgress);
+      
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      
+      // Extract text items
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+        
+      fullText += pageText + '\n\n';
+      
+      // Release page resources
+      page.cleanup();
+    }
+    
+    onProgressUpdate(70);
+    console.log("PDF text extraction completed. Extracted text length:", fullText.length);
+    
+    return fullText;
+  } catch (error) {
+    console.error("PDF extraction error:", error);
+    throw new Error("Failed to extract text from the PDF document");
+  }
+}
 
 /**
  * Checks if a file needs OCR processing based on its extension

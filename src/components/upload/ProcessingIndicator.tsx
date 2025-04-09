@@ -7,9 +7,10 @@ interface ProcessingIndicatorProps {
   isProcessing: boolean;
   progress: number;
   error?: string;
+  statusMessage?: string;
 }
 
-const ProcessingIndicator = ({ isProcessing, progress, error }: ProcessingIndicatorProps) => {
+const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage }: ProcessingIndicatorProps) => {
   if (!isProcessing && !error) return null;
   
   if (error) {
@@ -25,7 +26,7 @@ const ProcessingIndicator = ({ isProcessing, progress, error }: ProcessingIndica
     <div className="space-y-2">
       <Progress value={progress} className="h-2" />
       <p className="text-xs text-center text-gray-500">
-        Processing... {progress}%
+        {statusMessage || `Processing... ${progress}%`}
       </p>
     </div>
   );
