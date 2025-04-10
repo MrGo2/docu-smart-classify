@@ -32,7 +32,7 @@ export const performOcr = async (
     
     // Handle different file types
     if (file.type === 'application/pdf') {
-      return await extractTextFromPdf(file, onProgressUpdate);
+      return await extractTextFromPdf(file, worker, onProgressUpdate);
     } 
     
     // For images, use standard recognition
@@ -74,9 +74,13 @@ export const performOcr = async (
 };
 
 /**
- * Extracts text from a PDF file
+ * Extracts text from a PDF file, with special handling for scanned PDFs
  */
-async function extractTextFromPdf(file: File, onProgressUpdate: (progress: number) => void): Promise<string> {
+async function extractTextFromPdf(
+  file: File, 
+  worker: Tesseract.Worker,
+  onProgressUpdate: (progress: number) => void
+): Promise<string> {
   try {
     // Convert file to ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
@@ -103,13 +107,44 @@ async function extractTextFromPdf(file: File, onProgressUpdate: (progress: numbe
       const pageText = textContent.items
         .map((item: any) => item.str)
         .join(' ');
+      
+      // If the page has very little or no text, it's likely a scanned page
+      // We'll render it and use OCR
+      if (pageText.trim().length < 50) {
+        console.log(`Page ${i} appears to be scanned. Using OCR.`);
         
-      fullText += pageText + '\n\n';
+        // Render the PDF page to a canvas
+        const viewport = page.getViewport({ scale: 1.5 }); // Higher scale for better OCR
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        
+        if (!context) {
+          throw new Error("Failed to create canvas context");
+        }
+        
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        await page.render({
+          canvasContext: context,
+          viewport: viewport
+        }).promise;
+        
+        // Convert canvas to image data URL
+        const imageDataUrl = canvas.toDataURL('image/png');
+        
+        // Use OCR on the rendered image
+        const { data } = await worker.recognize(imageDataUrl);
+        fullText += data.text + '\n\n';
+      } else {
+        fullText += pageText + '\n\n';
+      }
       
       // Release page resources
       page.cleanup();
     }
     
+    await worker.terminate();
     onProgressUpdate(70);
     console.log("PDF text extraction completed. Extracted text length:", fullText.length);
     

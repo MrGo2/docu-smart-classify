@@ -23,6 +23,7 @@ const DocumentUploader = ({
     modelSelection,
     progress,
     isProcessing,
+    statusMessage,
     supportedTypes,
     setModelSelection,
     handleFileSelect,
@@ -52,6 +53,7 @@ const DocumentUploader = ({
       <ProcessingIndicator 
         isProcessing={isProcessing} 
         progress={progress} 
+        statusMessage={statusMessage}
       />
 
       <div className="flex justify-end">

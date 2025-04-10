@@ -14,6 +14,7 @@ export const useDocumentProcessing = (
   const [modelSelection, setModelSelection] = useState<string>("openai");
   const [progress, setProgress] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [statusMessage, setStatusMessage] = useState<string>("");
 
   const supportedTypes = [
     "application/pdf",
@@ -25,6 +26,7 @@ export const useDocumentProcessing = (
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
     setProgress(0);
+    setStatusMessage("");
   };
 
   const getApiKey = async (service: string) => {
@@ -53,6 +55,7 @@ export const useDocumentProcessing = (
 
     try {
       // 1. Get the selected model's API key
+      setStatusMessage("Getting API key...");
       const apiKey = await getApiKey(modelSelection);
       if (!apiKey) {
         throw new Error(`No API key configured for ${modelSelection}. Please add one first.`);
@@ -63,26 +66,56 @@ export const useDocumentProcessing = (
       // 2. Extract text if needed using OCR
       let extractedText = "";
       if (needsOcr(file)) {
-        extractedText = await performOcr(file, setProgress);
+        setStatusMessage("Performing OCR text extraction...");
+        extractedText = await performOcr(file, (ocrProgress) => {
+          // Scale OCR progress from 5% to 75% of the overall process
+          const scaledProgress = 5 + Math.floor(ocrProgress * 0.7);
+          setProgress(scaledProgress);
+          
+          if (ocrProgress < 40) {
+            setStatusMessage("Initializing OCR engine...");
+          } else if (ocrProgress < 70) {
+            setStatusMessage("Extracting text from document pages...");
+          } else {
+            setStatusMessage("Finalizing text extraction...");
+          }
+        });
+      } else if (file.type.includes("word")) {
+        setStatusMessage("Extracting text from Word document...");
+        // For Word documents, we could implement text extraction here
+        // For now we'll just set a placeholder
+        extractedText = "Text extraction from Word documents not implemented";
+        setProgress(75);
       }
 
       // 3. Classify the document using AI
+      setStatusMessage("Classifying document with AI...");
       const classification = await classifyDocument(
         extractedText,
         apiKey,
         modelSelection,
-        setProgress
+        (classifyProgress) => {
+          // Scale classification progress from 75% to 90% of the overall process
+          const scaledProgress = 75 + Math.floor(classifyProgress * 0.15);
+          setProgress(scaledProgress);
+        }
       );
 
       // 4. Upload document and save metadata
+      setStatusMessage("Saving document to storage...");
       await uploadDocumentToStorage(
         file,
         classification,
         extractedText,
         needsOcr(file),
-        setProgress
+        (uploadProgress) => {
+          // Scale upload progress from 90% to 100% of the overall process
+          const scaledProgress = 90 + Math.floor(uploadProgress * 0.1);
+          setProgress(scaledProgress);
+        }
       );
 
+      setStatusMessage("Processing complete!");
       setFile(null);
       setIsProcessing(false);
       onProcessingComplete();
@@ -98,6 +131,7 @@ export const useDocumentProcessing = (
     modelSelection,
     progress,
     isProcessing,
+    statusMessage,
     supportedTypes,
     setModelSelection,
     handleFileSelect,
