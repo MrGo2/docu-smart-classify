@@ -21,7 +21,8 @@ export const uploadDocumentToStorage = async (
   classification: string,
   extractedText: string,
   ocrProcessed: boolean,
-  onProgressUpdate: (progress: number) => void
+  onProgressUpdate: (progress: number) => void,
+  projectId?: string
 ): Promise<void> => {
   try {
     // Generate a unique filename
@@ -49,6 +50,7 @@ export const uploadDocumentToStorage = async (
       classification: classification,
       extracted_text: sanitizedText,
       ocr_processed: ocrProcessed,
+      project_id: projectId || null,
     });
     
     if (insertError) throw new Error("Failed to save document metadata");

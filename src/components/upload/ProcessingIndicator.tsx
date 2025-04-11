@@ -3,7 +3,7 @@ import { Progress } from "@/components/ui/progress";
 import { AlertCircle, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { OcrLanguage } from "@/utils/ocrProcessor";
+import { OcrLanguage } from "@/lib/ocr/types";
 
 interface ProcessingIndicatorProps {
   isProcessing: boolean;

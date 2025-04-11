@@ -1,9 +1,10 @@
 
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { performOcr, needsOcr, OcrLanguage } from "@/utils/ocrProcessor";
+import { performOcr, needsOcr } from "@/utils/ocrProcessor";
 import { classifyDocument } from "@/services/aiClassifier";
 import { uploadDocumentToStorage } from "@/services/documentStorage";
+import { OcrLanguage } from "@/lib/ocr/types";
 
 export const useDocumentProcessing = (
   onProcessingStart: () => void,
@@ -16,6 +17,7 @@ export const useDocumentProcessing = (
   const [progress, setProgress] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
   const supportedTypes = [
     "application/pdf",
@@ -135,8 +137,10 @@ export const useDocumentProcessing = (
     isProcessing,
     statusMessage,
     supportedTypes,
+    selectedProject,
     setModelSelection,
     setOcrLanguage,
+    setSelectedProject,
     handleFileSelect,
     processDocument
   };

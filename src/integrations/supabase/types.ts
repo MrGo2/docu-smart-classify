@@ -36,6 +36,44 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_prompts: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          project_id: string
+          prompt_text: string
+          prompt_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          project_id: string
+          prompt_text: string
+          prompt_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          project_id?: string
+          prompt_text?: string
+          prompt_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_prompts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           classification: string | null
@@ -46,6 +84,7 @@ export type Database = {
           filename: string
           id: string
           ocr_processed: boolean | null
+          project_id: string | null
           storage_path: string | null
           updated_at: string | null
         }
@@ -58,6 +97,7 @@ export type Database = {
           filename: string
           id?: string
           ocr_processed?: boolean | null
+          project_id?: string | null
           storage_path?: string | null
           updated_at?: string | null
         }
@@ -70,8 +110,50 @@ export type Database = {
           filename?: string
           id?: string
           ocr_processed?: boolean | null
+          project_id?: string | null
           storage_path?: string | null
           updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          client_name: string | null
+          created_at: string
+          default_ocr_language: string
+          default_ocr_provider: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          client_name?: string | null
+          created_at?: string
+          default_ocr_language?: string
+          default_ocr_provider?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          client_name?: string | null
+          created_at?: string
+          default_ocr_language?: string
+          default_ocr_provider?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }

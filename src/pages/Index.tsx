@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DocumentUploader from "@/components/DocumentUploader";
@@ -45,7 +46,7 @@ const Index = () => {
           <CardHeader>
             <CardTitle>Document Upload</CardTitle>
             <CardDescription>
-              Upload a document for processing (PDF, JPG, PNG, or Office document)
+              Upload a document to a project for processing (PDF, JPG, PNG, or Office document)
             </CardDescription>
           </CardHeader>
           <CardContent>

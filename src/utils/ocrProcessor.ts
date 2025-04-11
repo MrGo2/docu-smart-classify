@@ -1,185 +1,154 @@
 
+import { OcrLanguage } from "@/lib/ocr/types";
+import { OcrFactory } from "@/lib/ocr/OcrFactory";
 import { createWorker } from "tesseract.js";
-import * as pdfjs from 'pdfjs-dist';
+import * as pdfjs from "pdfjs-dist";
 
-// Initialize pdfjs worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
-
-export type OcrLanguage = 'spa' | 'eng';
+// Load the PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 /**
- * Performs OCR on an image or PDF file
+ * Determines if a file needs OCR processing
+ */
+export const needsOcr = (file: File): boolean => {
+  return file.type === "application/pdf" || file.type.startsWith("image/");
+};
+
+/**
+ * Gets the file extension from the file name
+ */
+export const getFileExtension = (fileName: string): string => {
+  return fileName.split(".").pop()?.toLowerCase() || "";
+};
+
+/**
+ * Performs OCR on a document
  */
 export const performOcr = async (
-  file: File, 
+  file: File,
   onProgressUpdate: (progress: number) => void,
-  language: OcrLanguage = 'spa' // Default to Spanish
+  ocrLanguage: OcrLanguage = "spa"
 ): Promise<string> => {
   try {
-    onProgressUpdate(10);
+    // Update progress to indicate we're starting
+    onProgressUpdate(5);
     
-    // Create worker with Tesseract.js configuration
-    const worker = await createWorker({
-      logger: progress => {
-        console.log('OCR Progress:', progress);
-      }
-    });
+    let extractedText = "";
     
-    onProgressUpdate(20);
+    if (file.type === "application/pdf") {
+      extractedText = await processPdf(file, onProgressUpdate, ocrLanguage);
+    } else if (file.type.startsWith("image/")) {
+      extractedText = await processImage(file, onProgressUpdate, ocrLanguage);
+    } else {
+      throw new Error("Unsupported file type for OCR");
+    }
     
-    // Initialize the worker with language
-    await worker.loadLanguage(language);
-    await worker.initialize(language);
-    
-    onProgressUpdate(30);
-    
-    // Handle different file types
-    if (file.type === 'application/pdf') {
-      return await extractTextFromPdf(file, worker, onProgressUpdate, language);
-    } 
-    
-    // For images, use standard recognition
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      
-      reader.onload = async (event) => {
-        try {
-          if (!event.target || !event.target.result) {
-            throw new Error("Failed to read file");
-          }
-          
-          const imageData = event.target.result as string;
-          console.log(`Processing image data with ${language} language...`);
-          
-          // Recognize the text in the image
-          const { data } = await worker.recognize(imageData);
-          await worker.terminate();
-          onProgressUpdate(70);
-          
-          console.log("OCR complete. Extracted text length:", data.text.length);
-          resolve(data.text);
-        } catch (error) {
-          console.error("OCR processing error:", error);
-          reject(new Error("Failed to extract text from the document"));
-        }
-      };
-      
-      reader.onerror = () => {
-        reject(new Error("Failed to read the file"));
-      };
-      
-      reader.readAsDataURL(file);
-    });
+    onProgressUpdate(100);
+    return extractedText;
   } catch (error) {
-    console.error("OCR error:", error);
-    throw new Error("Failed to extract text from the document");
+    console.error("OCR processing error:", error);
+    throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
 /**
- * Extracts text from a PDF file, with special handling for scanned PDFs
+ * Process a PDF file using OCR if needed
  */
-async function extractTextFromPdf(
-  file: File, 
-  worker: Tesseract.Worker,
+async function processPdf(
+  file: File,
   onProgressUpdate: (progress: number) => void,
-  language: OcrLanguage = 'spa'
+  ocrLanguage: OcrLanguage
 ): Promise<string> {
-  try {
-    // Convert file to ArrayBuffer
-    const arrayBuffer = await file.arrayBuffer();
+  // Load the PDF document
+  const arrayBuffer = await file.arrayBuffer();
+  const pdfDocument = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  const numPages = pdfDocument.numPages;
+  
+  let fullText = "";
+  const textContents: string[] = [];
+  
+  // Process each page
+  for (let i = 1; i <= numPages; i++) {
+    // Update progress based on page number (scale from 10% to 90%)
+    const pageProgress = 10 + Math.floor((i / numPages) * 80);
+    onProgressUpdate(pageProgress);
     
-    // Load PDF document
-    const pdf = await pdfjs.getDocument(new Uint8Array(arrayBuffer)).promise;
-    const numPages = pdf.numPages;
-    console.log(`PDF loaded. Number of pages: ${numPages}`);
+    // Get the page
+    const page = await pdfDocument.getPage(i);
     
-    onProgressUpdate(40);
-    
-    let fullText = '';
-    
-    // Extract text from each page
-    for (let i = 1; i <= numPages; i++) {
-      // Calculate progress - starting from 40% to 70%
-      const pageProgress = 40 + Math.floor((i / numPages) * 30);
-      onProgressUpdate(pageProgress);
-      
-      const page = await pdf.getPage(i);
+    try {
+      // Try to extract text directly first
       const textContent = await page.getTextContent();
-      
-      // Extract text items
       const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
+        .map((item: any) => "str" in item ? item.str : "")
+        .join(" ");
+        
+      textContents.push(pageText);
+    } catch (error) {
+      console.warn(`Could not extract text from page ${i}, using OCR instead`, error);
       
-      // If the page has very little or no text, it's likely a scanned page
-      // We'll render it and use OCR
-      if (pageText.trim().length < 50) {
-        console.log(`Page ${i} appears to be scanned. Using OCR with ${language} language.`);
-        
-        // Render the PDF page to a canvas
-        const viewport = page.getViewport({ scale: 1.5 }); // Higher scale for better OCR
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        
-        if (!context) {
-          throw new Error("Failed to create canvas context");
-        }
-        
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-        
-        await page.render({
-          canvasContext: context,
-          viewport: viewport
-        }).promise;
-        
-        // Convert canvas to image data URL
-        const imageDataUrl = canvas.toDataURL('image/png');
-        
-        // Use OCR on the rendered image
-        const { data } = await worker.recognize(imageDataUrl);
-        fullText += data.text + '\n\n';
-      } else {
-        fullText += pageText + '\n\n';
-      }
+      // Fall back to OCR for this page
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
       
-      // Release page resources
-      page.cleanup();
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      
+      // Render the PDF page to the canvas
+      await page.render({
+        canvasContext: context!,
+        viewport,
+      }).promise;
+      
+      // Convert canvas to blob
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => resolve(b!), "image/png");
+      });
+      
+      // Create file from blob
+      const pageFile = new File([blob], `page-${i}.png`, { type: "image/png" });
+      
+      // Use OCR on the rendered page
+      const ocr = OcrFactory.getProvider("tesseract");
+      const result = await ocr.extractText(
+        pageFile,
+        (p) => {
+          // Scale OCR progress within this page's range
+          const scaledProgress = pageProgress + Math.floor(p * (80 / numPages));
+          onProgressUpdate(Math.min(scaledProgress, 90));
+        },
+        ocrLanguage
+      );
+      
+      textContents.push(result.text);
     }
-    
-    await worker.terminate();
-    onProgressUpdate(70);
-    console.log("PDF text extraction completed. Extracted text length:", fullText.length);
-    
-    return fullText;
-  } catch (error) {
-    console.error("PDF extraction error:", error);
-    throw new Error("Failed to extract text from the PDF document");
   }
+  
+  // Combine all page texts
+  fullText = textContents.join("\n\n=== PAGE BREAK ===\n\n");
+  
+  return fullText;
 }
 
 /**
- * Checks if a file needs OCR processing based on its extension
+ * Process an image file using OCR
  */
-export const needsOcr = (file: File): boolean => {
-  const ext = getFileExtension(file.name);
-  return ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'pdf';
-};
-
-/**
- * Gets the file extension from a filename
- */
-export const getFileExtension = (fileName: string): string => {
-  return fileName.split('.').pop()?.toLowerCase() || '';
-};
-
-/**
- * Get available OCR languages
- */
-export const getAvailableOcrLanguages = (): { value: OcrLanguage; label: string }[] => {
-  return [
-    { value: 'spa', label: 'Spanish' },
-    { value: 'eng', label: 'English' }
-  ];
-};
+async function processImage(
+  file: File,
+  onProgressUpdate: (progress: number) => void,
+  ocrLanguage: OcrLanguage
+): Promise<string> {
+  const ocr = OcrFactory.getProvider("tesseract");
+  const result = await ocr.extractText(
+    file,
+    (p) => {
+      // Scale OCR progress from 10% to 90%
+      const scaledProgress = 10 + Math.floor(p * 0.8);
+      onProgressUpdate(Math.min(scaledProgress, 90));
+    },
+    ocrLanguage
+  );
+  
+  return result.text;
+}
