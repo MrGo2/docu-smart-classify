@@ -13,14 +13,20 @@ export class TesseractProvider implements OcrProvider {
     options?: OcrOptions
   ): Promise<OcrResult> {
     try {
-      // Initialize the Tesseract worker with the selected language
-      const worker = await createWorker(language);
-      
-      // Set up progress monitoring
-      worker.setProgressHandler((progress) => {
-        onProgressUpdate(Math.floor(progress.progress * 100));
+      // Initialize the Tesseract worker with the proper options object
+      const worker = await createWorker({
+        logger: progress => {
+          // The progress object has a .progress property between 0-1
+          if (progress.progress !== undefined) {
+            onProgressUpdate(Math.floor(progress.progress * 100));
+          }
+        }
       });
 
+      // Load the language data
+      await worker.loadLanguage(language);
+      await worker.initialize(language);
+      
       // Convert file to image data URL
       const imageData = await this.fileToImage(file);
       
