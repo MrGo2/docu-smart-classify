@@ -5,12 +5,15 @@ import * as pdfjs from 'pdfjs-dist';
 // Initialize pdfjs worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
 
+export type OcrLanguage = 'spa' | 'eng';
+
 /**
  * Performs OCR on an image or PDF file
  */
 export const performOcr = async (
   file: File, 
-  onProgressUpdate: (progress: number) => void
+  onProgressUpdate: (progress: number) => void,
+  language: OcrLanguage = 'spa' // Default to Spanish
 ): Promise<string> => {
   try {
     onProgressUpdate(10);
@@ -25,14 +28,14 @@ export const performOcr = async (
     onProgressUpdate(20);
     
     // Initialize the worker with language
-    await worker.loadLanguage('eng');
-    await worker.initialize('eng');
+    await worker.loadLanguage(language);
+    await worker.initialize(language);
     
     onProgressUpdate(30);
     
     // Handle different file types
     if (file.type === 'application/pdf') {
-      return await extractTextFromPdf(file, worker, onProgressUpdate);
+      return await extractTextFromPdf(file, worker, onProgressUpdate, language);
     } 
     
     // For images, use standard recognition
@@ -46,7 +49,7 @@ export const performOcr = async (
           }
           
           const imageData = event.target.result as string;
-          console.log("Processing image data...");
+          console.log(`Processing image data with ${language} language...`);
           
           // Recognize the text in the image
           const { data } = await worker.recognize(imageData);
@@ -79,7 +82,8 @@ export const performOcr = async (
 async function extractTextFromPdf(
   file: File, 
   worker: Tesseract.Worker,
-  onProgressUpdate: (progress: number) => void
+  onProgressUpdate: (progress: number) => void,
+  language: OcrLanguage = 'spa'
 ): Promise<string> {
   try {
     // Convert file to ArrayBuffer
@@ -111,7 +115,7 @@ async function extractTextFromPdf(
       // If the page has very little or no text, it's likely a scanned page
       // We'll render it and use OCR
       if (pageText.trim().length < 50) {
-        console.log(`Page ${i} appears to be scanned. Using OCR.`);
+        console.log(`Page ${i} appears to be scanned. Using OCR with ${language} language.`);
         
         // Render the PDF page to a canvas
         const viewport = page.getViewport({ scale: 1.5 }); // Higher scale for better OCR
@@ -168,4 +172,14 @@ export const needsOcr = (file: File): boolean => {
  */
 export const getFileExtension = (fileName: string): string => {
   return fileName.split('.').pop()?.toLowerCase() || '';
+};
+
+/**
+ * Get available OCR languages
+ */
+export const getAvailableOcrLanguages = (): { value: OcrLanguage; label: string }[] => {
+  return [
+    { value: 'spa', label: 'Spanish' },
+    { value: 'eng', label: 'English' }
+  ];
 };

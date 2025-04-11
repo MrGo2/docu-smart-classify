@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { performOcr, needsOcr } from "@/utils/ocrProcessor";
+import { performOcr, needsOcr, OcrLanguage } from "@/utils/ocrProcessor";
 import { classifyDocument } from "@/services/aiClassifier";
 import { uploadDocumentToStorage } from "@/services/documentStorage";
 
@@ -12,6 +12,7 @@ export const useDocumentProcessing = (
 ) => {
   const [file, setFile] = useState<File | null>(null);
   const [modelSelection, setModelSelection] = useState<string>("openai");
+  const [ocrLanguage, setOcrLanguage] = useState<OcrLanguage>("spa"); // Default to Spanish
   const [progress, setProgress] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>("");
@@ -66,20 +67,20 @@ export const useDocumentProcessing = (
       // 2. Extract text if needed using OCR
       let extractedText = "";
       if (needsOcr(file)) {
-        setStatusMessage("Performing OCR text extraction...");
+        setStatusMessage(`Performing OCR text extraction with ${ocrLanguage === 'spa' ? 'Spanish' : 'English'} language model...`);
         extractedText = await performOcr(file, (ocrProgress) => {
           // Scale OCR progress from 5% to 75% of the overall process
           const scaledProgress = 5 + Math.floor(ocrProgress * 0.7);
           setProgress(scaledProgress);
           
           if (ocrProgress < 40) {
-            setStatusMessage("Initializing OCR engine...");
+            setStatusMessage(`Initializing ${ocrLanguage === 'spa' ? 'Spanish' : 'English'} OCR engine...`);
           } else if (ocrProgress < 70) {
             setStatusMessage("Extracting text from document pages...");
           } else {
             setStatusMessage("Finalizing text extraction...");
           }
-        });
+        }, ocrLanguage);
       } else if (file.type.includes("word")) {
         setStatusMessage("Extracting text from Word document...");
         // For Word documents, we could implement text extraction here
@@ -129,11 +130,13 @@ export const useDocumentProcessing = (
   return {
     file,
     modelSelection,
+    ocrLanguage,
     progress,
     isProcessing,
     statusMessage,
     supportedTypes,
     setModelSelection,
+    setOcrLanguage,
     handleFileSelect,
     processDocument
   };

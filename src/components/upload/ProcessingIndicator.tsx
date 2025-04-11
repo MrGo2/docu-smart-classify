@@ -3,15 +3,17 @@ import { Progress } from "@/components/ui/progress";
 import { AlertCircle, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { OcrLanguage } from "@/utils/ocrProcessor";
 
 interface ProcessingIndicatorProps {
   isProcessing: boolean;
   progress: number;
   error?: string;
   statusMessage?: string;
+  ocrLanguage?: OcrLanguage;
 }
 
-const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage }: ProcessingIndicatorProps) => {
+const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage, ocrLanguage }: ProcessingIndicatorProps) => {
   if (!isProcessing && !error) return null;
   
   // Generate appropriate status message based on progress
@@ -24,6 +26,7 @@ const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage }: P
   };
   
   const detailedMessage = statusMessage || getDetailedStatus(progress);
+  const languageDisplay = ocrLanguage === 'spa' ? 'Spanish' : 'English';
   
   if (error) {
     return (
@@ -45,6 +48,7 @@ const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage }: P
               <Info className="h-3 w-3 ml-1 cursor-help" />
             </TooltipTrigger>
             <TooltipContent>
+              <p className="text-xs">OCR Language: {languageDisplay}</p>
               <p className="text-xs">Complex documents and scanned PDFs may take longer to process</p>
             </TooltipContent>
           </Tooltip>
