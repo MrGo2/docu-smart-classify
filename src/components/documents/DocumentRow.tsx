@@ -1,5 +1,6 @@
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Eye, Trash2 } from "lucide-react";
 import { Document } from "@/types/document";
@@ -9,11 +10,22 @@ interface DocumentRowProps {
   document: Document;
   onView: (document: Document) => void;
   onDelete: (document: Document) => void;
+  onSelect?: (documentId: string, selected: boolean) => void;
+  isSelected?: boolean;
 }
 
-const DocumentRow = ({ document, onView, onDelete }: DocumentRowProps) => {
+const DocumentRow = ({ document, onView, onDelete, onSelect, isSelected }: DocumentRowProps) => {
   return (
     <TableRow key={document.id}>
+      {onSelect !== undefined && (
+        <TableCell className="pr-0 w-[40px]">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={(checked) => onSelect(document.id, checked === true)}
+            aria-label={`Select ${document.filename}`}
+          />
+        </TableCell>
+      )}
       <TableCell className="font-medium">{document.filename}</TableCell>
       <TableCell>{getFileTypeDisplay(document.file_type)}</TableCell>
       <TableCell>{formatFileSize(document.file_size)}</TableCell>

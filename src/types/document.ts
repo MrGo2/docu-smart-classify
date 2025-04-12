@@ -11,4 +11,5 @@ export interface Document {
   metadata?: Record<string, any> | null;
   project_id?: string | null;
   ocr_processed?: boolean | null;
+  selected?: boolean; // Added to track selection state
 }
