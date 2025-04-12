@@ -8,7 +8,7 @@ import { OcrLanguage } from "@/lib/ocr/types";
 interface ProcessingIndicatorProps {
   isProcessing: boolean;
   progress: number;
-  error?: string;
+  error?: string | null;
   statusMessage?: string;
   ocrLanguage?: OcrLanguage;
 }

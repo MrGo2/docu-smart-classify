@@ -21,6 +21,7 @@ const BatchUpload = () => {
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [overallProgress, setOverallProgress] = useState(0);
   const [extractionStrategy, setExtractionStrategy] = useState<ExtractionStrategy>(ExtractionStrategy.FIRST_PAGE);
+  const [processingError, setProcessingError] = useState<string | null>(null);
   
   const {
     modelSelection,
@@ -38,29 +39,37 @@ const BatchUpload = () => {
     () => {},
     () => {
       // When current file completes
-      if (currentFileIndex < files.length - 1) {
-        // Process next file
-        setCurrentFileIndex(prev => prev + 1);
-      } else {
-        // All files processed
-        setIsProcessing(false);
-        toast.success(`All ${files.length} documents processed successfully`);
-        setFiles([]);
-        setCurrentFileIndex(0);
-      }
+      handleFileComplete(true);
     },
     (error) => {
-      toast.error(`Error processing document: ${error}`);
+      // Log the error but continue processing
+      setProcessingError(error);
+      toast.error(`Error processing "${files[currentFileIndex]?.name}": ${error}`);
+      
       // Continue with next file despite error
-      if (currentFileIndex < files.length - 1) {
-        setCurrentFileIndex(prev => prev + 1);
-      } else {
-        setIsProcessing(false);
-        setFiles([]);
-        setCurrentFileIndex(0);
-      }
+      handleFileComplete(false);
     }
   );
+
+  const handleFileComplete = (success: boolean) => {
+    if (currentFileIndex < files.length - 1) {
+      // Process next file after a short delay
+      setTimeout(() => {
+        setCurrentFileIndex(prev => prev + 1);
+        setProcessingError(null);
+      }, 500);
+    } else {
+      // All files processed
+      setIsProcessing(false);
+      setProcessingError(null);
+      toast.success(`Completed processing ${files.length} documents. ${
+        success ? '' : 'Some files may have encountered errors.'
+      }`);
+      setFiles([]);
+      setCurrentFileIndex(0);
+      setOverallProgress(100);
+    }
+  };
 
   const handleFilesSelect = (selectedFiles: File[]) => {
     setFiles(prev => [...prev, ...selectedFiles]);
@@ -75,15 +84,34 @@ const BatchUpload = () => {
     setDocProcessingExtractionStrategy(extractionStrategy);
   }, [extractionStrategy, setDocProcessingExtractionStrategy]);
 
+  // Process the next file in the queue
+  useEffect(() => {
+    if (isProcessing && files[currentFileIndex]) {
+      const processCurrentFile = async () => {
+        try {
+          await processDocument(files[currentFileIndex]);
+        } catch (error) {
+          console.error("Error in batch processing:", error);
+          
+          // If processDocument throws (it shouldn't due to internal error handling),
+          // continue to the next file
+          handleFileComplete(false);
+        }
+      };
+      
+      processCurrentFile();
+    }
+  }, [currentFileIndex, isProcessing]);
+
   const handleProcessAllDocuments = async () => {
     if (!files.length || !selectedProject) return;
     
     setIsProcessing(true);
     setCurrentFileIndex(0);
     setOverallProgress(0);
+    setProcessingError(null);
     
-    // Process first file, the completion callback will handle the next ones
-    await processDocument(files[0]);
+    // The useEffect will handle starting the first document processing
   };
 
   // Calculate overall progress
@@ -197,8 +225,9 @@ const BatchUpload = () => {
                   <ProcessingIndicator
                     isProcessing={isProcessing}
                     progress={fileProgress}
-                    statusMessage={statusMessage}
+                    statusMessage={processingError || statusMessage}
                     ocrLanguage={ocrLanguage}
+                    error={processingError}
                   />
                 </div>
               </div>
