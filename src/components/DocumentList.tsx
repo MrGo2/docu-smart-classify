@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button"; // Add missing Button import
 import { Document } from "@/types/document";
 import DocumentViewer from "./DocumentViewer";
 import DocumentsTable from "./documents/DocumentsTable";
