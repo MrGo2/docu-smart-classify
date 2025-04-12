@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -31,9 +30,10 @@ interface Document {
 
 interface DocumentListProps {
   refreshTrigger: number;
+  limit?: number;
 }
 
-const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
+const DocumentList = ({ refreshTrigger, limit }: DocumentListProps) => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
@@ -46,10 +46,16 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
     const fetchDocuments = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from("documents")
           .select("*")
           .order("created_at", { ascending: false });
+
+        if (limit) {
+          query = query.limit(limit);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
         setDocuments(data || []);
@@ -61,7 +67,7 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
     };
 
     fetchDocuments();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, limit]);
 
   const handleViewDocument = (document: Document) => {
     setSelectedDocument(document);
@@ -78,14 +84,12 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
     
     setIsDeleting(true);
     try {
-      // 1. Delete the file from storage
       const { error: storageError } = await supabase.storage
         .from("documents")
         .remove([documentToDelete.storage_path]);
         
       if (storageError) throw storageError;
       
-      // 2. Delete the document entry from the database
       const { error: dbError } = await supabase
         .from("documents")
         .delete()
@@ -93,7 +97,6 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
         
       if (dbError) throw dbError;
       
-      // 3. Update the UI
       setDocuments(documents.filter(doc => doc.id !== documentToDelete.id));
       toast.success(`"${documentToDelete.filename}" deleted successfully`);
     } catch (error) {
@@ -186,7 +189,6 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
         </div>
       )}
 
-      {/* Document Viewer Dialog */}
       <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
         <DialogContent className="max-w-4xl h-[80vh] p-0">
           {selectedDocument && (
@@ -195,7 +197,6 @@ const DocumentList = ({ refreshTrigger }: DocumentListProps) => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
