@@ -40,6 +40,12 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     onProcessingError
   );
 
+  // Create a handler function that conforms to the onClick type
+  const handleProcessDocument = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    processDocument();
+  };
+
   return (
     <div className="space-y-4">
       <ProjectSelector
@@ -72,7 +78,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       
       <Button
         className="w-full"
-        onClick={processDocument}
+        onClick={handleProcessDocument}
         disabled={isProcessing || !file || !selectedProject}
       >
         {isProcessing ? "Processing..." : "Process Document"}
