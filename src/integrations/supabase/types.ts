@@ -38,8 +38,10 @@ export type Database = {
       }
       custom_prompts: {
         Row: {
+          ai_model: string | null
           created_at: string
           id: string
+          is_active: boolean | null
           name: string
           project_id: string
           prompt_text: string
@@ -47,8 +49,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_model?: string | null
           created_at?: string
           id?: string
+          is_active?: boolean | null
           name: string
           project_id: string
           prompt_text: string
@@ -56,8 +60,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_model?: string | null
           created_at?: string
           id?: string
+          is_active?: boolean | null
           name?: string
           project_id?: string
           prompt_text?: string
@@ -124,10 +130,58 @@ export type Database = {
           },
         ]
       }
+      extraction_variables: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          document_type: string
+          extraction_prompt: string
+          id: string
+          is_required: boolean | null
+          name: string
+          project_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          document_type: string
+          extraction_prompt: string
+          id?: string
+          is_required?: boolean | null
+          name: string
+          project_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          document_type?: string
+          extraction_prompt?: string
+          id?: string
+          is_required?: boolean | null
+          name?: string
+          project_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extraction_variables_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           client_name: string | null
           created_at: string
+          default_ai_model: string | null
           default_ocr_language: string
           default_ocr_provider: string
           description: string | null
@@ -138,6 +192,7 @@ export type Database = {
         Insert: {
           client_name?: string | null
           created_at?: string
+          default_ai_model?: string | null
           default_ocr_language?: string
           default_ocr_provider?: string
           description?: string | null
@@ -148,6 +203,7 @@ export type Database = {
         Update: {
           client_name?: string | null
           created_at?: string
+          default_ai_model?: string | null
           default_ocr_language?: string
           default_ocr_provider?: string
           description?: string | null
