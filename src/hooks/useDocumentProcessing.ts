@@ -25,6 +25,10 @@ export const useDocumentProcessing = (
     "image/png",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ];
+  
+  const canExtractContent = (fileType: string): boolean => {
+    return supportedTypes.includes(fileType);
+  };
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -67,32 +71,41 @@ export const useDocumentProcessing = (
 
       setProgress(5);
 
-      // 2. Extract text if needed using OCR
+      // Check if file type is supported for content extraction
+      const isContentExtractable = canExtractContent(fileToProcess.type);
+
+      // 2. Extract text if needed using OCR (only for supported file types)
       let extractedText = "";
-      if (needsOcr(fileToProcess)) {
-        setStatusMessage(`Performing OCR text extraction with ${ocrLanguage === 'spa' ? 'Spanish' : 'English'} language model...`);
-        extractedText = await performOcr(fileToProcess, (ocrProgress) => {
-          // Scale OCR progress from 5% to 75% of the overall process
-          const scaledProgress = 5 + Math.floor(ocrProgress * 0.7);
-          setProgress(scaledProgress);
-          
-          if (ocrProgress < 40) {
-            setStatusMessage(`Initializing ${ocrLanguage === 'spa' ? 'Spanish' : 'English'} OCR engine...`);
-          } else if (ocrProgress < 70) {
-            setStatusMessage("Extracting text from document pages...");
-          } else {
-            setStatusMessage("Finalizing text extraction...");
-          }
-        }, ocrLanguage);
-      } else if (fileToProcess.type.includes("word")) {
-        setStatusMessage("Extracting text from Word document...");
-        // For Word documents, we could implement text extraction here
-        // For now we'll just set a placeholder
-        extractedText = "Text extraction from Word documents not implemented";
+      if (isContentExtractable) {
+        if (needsOcr(fileToProcess)) {
+          setStatusMessage(`Performing OCR text extraction with ${ocrLanguage === 'spa' ? 'Spanish' : 'English'} language model...`);
+          extractedText = await performOcr(fileToProcess, (ocrProgress) => {
+            // Scale OCR progress from 5% to 75% of the overall process
+            const scaledProgress = 5 + Math.floor(ocrProgress * 0.7);
+            setProgress(scaledProgress);
+            
+            if (ocrProgress < 40) {
+              setStatusMessage(`Initializing ${ocrLanguage === 'spa' ? 'Spanish' : 'English'} OCR engine...`);
+            } else if (ocrProgress < 70) {
+              setStatusMessage("Extracting text from document pages...");
+            } else {
+              setStatusMessage("Finalizing text extraction...");
+            }
+          }, ocrLanguage);
+        } else if (fileToProcess.type.includes("word")) {
+          setStatusMessage("Extracting text from Word document...");
+          // For Word documents, we could implement text extraction here
+          // For now we'll just set a placeholder
+          extractedText = "Text extraction from Word documents not implemented";
+          setProgress(75);
+        }
+      } else {
+        // For unsupported file types, we'll just use metadata
+        setStatusMessage("Unsupported file type for content extraction, using metadata only...");
         setProgress(75);
       }
 
-      // 3. Classify the document using AI
+      // 3. Classify the document using AI based on extracted text and metadata
       setStatusMessage("Classifying document with AI...");
       const classification = await classifyDocument(
         extractedText,
@@ -102,7 +115,8 @@ export const useDocumentProcessing = (
           // Scale classification progress from 75% to 90% of the overall process
           const scaledProgress = 75 + Math.floor(classifyProgress * 0.15);
           setProgress(scaledProgress);
-        }
+        },
+        fileToProcess
       );
 
       // 4. Upload document and save metadata
@@ -111,7 +125,7 @@ export const useDocumentProcessing = (
         fileToProcess,
         classification,
         extractedText,
-        needsOcr(fileToProcess),
+        needsOcr(fileToProcess) && isContentExtractable,
         (uploadProgress) => {
           // Scale upload progress from 90% to 100% of the overall process
           const scaledProgress = 90 + Math.floor(uploadProgress * 0.1);

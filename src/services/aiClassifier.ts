@@ -9,10 +9,22 @@ export const classifyDocument = async (
   text: string, 
   apiKey: string, 
   modelService: string,
-  onProgressUpdate: (progress: number) => void
+  onProgressUpdate: (progress: number) => void,
+  file?: File
 ): Promise<string> => {
   try {
     onProgressUpdate(80);
+
+    // Extract metadata to enrich context for classification
+    let metadataContext = "";
+    if (file) {
+      metadataContext = `
+Filename: ${file.name}
+File type: ${file.type}
+File size: ${(file.size / 1024).toFixed(1)} KB
+Last modified: ${new Date(file.lastModified).toLocaleString()}
+`;
+    }
 
     // Different API endpoints and parameters based on the selected AI service
     let apiEndpoint: string;
@@ -30,7 +42,7 @@ export const classifyDocument = async (
           model: "gpt-3.5-turbo", // Use appropriate model
           messages: [
             { role: "system", content: CLASSIFICATION_PROMPTS.system },
-            { role: "user", content: CLASSIFICATION_PROMPTS.user(text) }
+            { role: "user", content: CLASSIFICATION_PROMPTS.user(text, metadataContext) }
           ],
           temperature: 0.3,
           max_tokens: 50
@@ -44,7 +56,7 @@ export const classifyDocument = async (
           model: "mistral-small", // Use appropriate model
           messages: [
             { role: "system", content: CLASSIFICATION_PROMPTS.system },
-            { role: "user", content: CLASSIFICATION_PROMPTS.user(text) }
+            { role: "user", content: CLASSIFICATION_PROMPTS.user(text, metadataContext) }
           ],
           temperature: 0.3,
           max_tokens: 50
@@ -56,7 +68,7 @@ export const classifyDocument = async (
         headers["Authorization"] = `Bearer ${apiKey}`;
         headers["anthropic-version"] = "2023-06-01"; // Adding required API version header
         requestBody = {
-          prompt: `${CLASSIFICATION_PROMPTS.system}\n\nHuman: ${CLASSIFICATION_PROMPTS.user(text)}\n\nAssistant:`,
+          prompt: `${CLASSIFICATION_PROMPTS.system}\n\nHuman: ${CLASSIFICATION_PROMPTS.user(text, metadataContext)}\n\nAssistant:`,
           model: "claude-instant-1",
           max_tokens_to_sample: 50,
           temperature: 0.3

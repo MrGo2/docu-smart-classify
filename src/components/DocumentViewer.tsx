@@ -13,6 +13,7 @@ interface Document {
   storage_path: string;
   classification: string | null;
   extracted_text: string | null;
+  metadata?: Record<string, any>;
 }
 
 interface DocumentViewerProps {
@@ -109,6 +110,22 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     }
   };
 
+  // Render metadata information
+  const renderMetadata = () => {
+    if (!document.metadata) return <p>No metadata available</p>;
+    
+    return (
+      <div className="space-y-2">
+        {Object.entries(document.metadata).map(([key, value]) => (
+          <div key={key} className="grid grid-cols-2 gap-2">
+            <span className="font-medium text-gray-500 capitalize">{key}</span>
+            <span>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full">
       <DialogHeader className="p-6 pb-0">
@@ -171,6 +188,11 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
                 <p className="text-sm font-medium text-gray-500">Storage Path</p>
                 <p className="truncate">{document.storage_path}</p>
               </div>
+            </div>
+            
+            <div className="border-t pt-4 mt-4">
+              <h3 className="text-sm font-medium mb-2">File Metadata</h3>
+              {renderMetadata()}
             </div>
           </div>
         </TabsContent>

@@ -3,6 +3,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { getFileExtension } from "@/utils/ocrProcessor";
 
 /**
+ * Extracts metadata from a file
+ */
+const extractFileMetadata = (file: File): Record<string, any> => {
+  return {
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    lastModified: new Date(file.lastModified).toISOString(),
+    extension: getFileExtension(file.name)
+  };
+};
+
+/**
  * Sanitizes text to remove invalid Unicode escape sequences
  * that cause PostgreSQL errors
  */
@@ -30,6 +43,9 @@ export const uploadDocumentToStorage = async (
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
     const storagePath = `${fileName}`;
     
+    // Extract file metadata
+    const metadata = extractFileMetadata(file);
+    
     // 1. Upload file to Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from("documents")
@@ -51,6 +67,7 @@ export const uploadDocumentToStorage = async (
       extracted_text: sanitizedText,
       ocr_processed: ocrProcessed,
       project_id: projectId || null,
+      metadata: metadata
     });
     
     if (insertError) throw new Error("Failed to save document metadata");
