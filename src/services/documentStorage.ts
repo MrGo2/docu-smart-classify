@@ -47,11 +47,14 @@ export const uploadDocumentToStorage = async (
     const metadata = extractFileMetadata(file);
     
     // 1. Upload file to Supabase Storage
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError, data: storageData } = await supabase.storage
       .from("documents")
       .upload(storagePath, file);
       
-    if (uploadError) throw new Error("Failed to upload document to storage");
+    if (uploadError) {
+      console.error("Storage upload error:", uploadError);
+      throw new Error("Failed to upload document to storage");
+    }
     
     onProgressUpdate(95);
     
@@ -70,7 +73,10 @@ export const uploadDocumentToStorage = async (
       metadata: metadata
     });
     
-    if (insertError) throw new Error("Failed to save document metadata");
+    if (insertError) {
+      console.error("Database insert error:", insertError);
+      throw new Error("Failed to save document metadata");
+    }
     
     onProgressUpdate(100);
   } catch (error) {

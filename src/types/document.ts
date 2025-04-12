@@ -9,4 +9,5 @@ export interface Document {
   created_at: string;
   extracted_text: string | null;
   metadata?: Record<string, any>;
+  project_id?: string | null;
 }
