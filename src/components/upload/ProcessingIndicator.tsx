@@ -41,7 +41,7 @@ const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage, ocr
       )}
       
       {warnings.length > 0 && (
-        <Alert variant="warning" className="mt-2 bg-amber-50 border-amber-200 text-amber-800">
+        <Alert variant="default" className="mt-2 bg-amber-50 border-amber-200 text-amber-800">
           <FileWarning className="h-4 w-4 mr-2 text-amber-500" />
           <AlertDescription>
             {warnings.length === 1 

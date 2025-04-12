@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { Loader, X, CheckCircle2, Ban } from "lucide-react";
+import { Loader, X, CheckCircle2, Ban, AlertCircle } from "lucide-react";
 import { useDocumentProcessing } from "@/hooks/useDocumentProcessing";
 import MultiFileUploadArea from "@/components/upload/MultiFileUploadArea";
 import ModelSelector from "@/components/upload/ModelSelector";
@@ -13,6 +13,7 @@ import ProjectSelector from "@/components/projects/ProjectSelector";
 import ExtractionStrategySelector from "@/components/upload/ExtractionStrategySelector";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ExtractionStrategy } from "@/lib/extraction/types";
 
 // Constants
