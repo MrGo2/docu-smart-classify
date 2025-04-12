@@ -13,8 +13,17 @@ interface DocumentListProps {
   limit?: number;
 }
 
-const DocumentList = ({ refreshTrigger, limit }: DocumentListProps) => {
-  const { documents, loading, isDeleting, deleteDocument } = useDocuments(refreshTrigger, limit);
+const DocumentList = ({ refreshTrigger, limit = 10 }: DocumentListProps) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const { 
+    documents, 
+    loading, 
+    isDeleting, 
+    deleteDocument, 
+    totalPages, 
+    totalCount 
+  } = useDocuments(refreshTrigger, limit, currentPage);
+  
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -44,6 +53,10 @@ const DocumentList = ({ refreshTrigger, limit }: DocumentListProps) => {
       setDocumentToDelete(null);
     }
   };
+  
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   if (loading) {
     return (
@@ -54,12 +67,18 @@ const DocumentList = ({ refreshTrigger, limit }: DocumentListProps) => {
     );
   }
 
-  if (documents.length === 0) {
+  if (documents.length === 0 && currentPage === 1) {
     return (
       <div className="text-center py-8 text-gray-500">
         <p>No documents processed yet</p>
       </div>
     );
+  }
+  
+  // If we're on a page with no documents (e.g., after deletion), go back to page 1
+  if (documents.length === 0 && currentPage !== 1) {
+    setCurrentPage(1);
+    return null;
   }
 
   return (
@@ -68,6 +87,10 @@ const DocumentList = ({ refreshTrigger, limit }: DocumentListProps) => {
         documents={documents}
         onViewDocument={handleViewDocument}
         onDeleteClick={handleDeleteClick}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        totalCount={totalCount}
       />
 
       <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
