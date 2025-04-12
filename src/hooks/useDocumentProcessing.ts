@@ -49,8 +49,9 @@ export const useDocumentProcessing = (
     }
   };
 
-  const processDocument = async () => {
-    if (!file) return;
+  const processDocument = async (documentFile?: File) => {
+    const fileToProcess = documentFile || file;
+    if (!fileToProcess) return;
 
     setIsProcessing(true);
     onProcessingStart();
@@ -68,9 +69,9 @@ export const useDocumentProcessing = (
 
       // 2. Extract text if needed using OCR
       let extractedText = "";
-      if (needsOcr(file)) {
+      if (needsOcr(fileToProcess)) {
         setStatusMessage(`Performing OCR text extraction with ${ocrLanguage === 'spa' ? 'Spanish' : 'English'} language model...`);
-        extractedText = await performOcr(file, (ocrProgress) => {
+        extractedText = await performOcr(fileToProcess, (ocrProgress) => {
           // Scale OCR progress from 5% to 75% of the overall process
           const scaledProgress = 5 + Math.floor(ocrProgress * 0.7);
           setProgress(scaledProgress);
@@ -83,7 +84,7 @@ export const useDocumentProcessing = (
             setStatusMessage("Finalizing text extraction...");
           }
         }, ocrLanguage);
-      } else if (file.type.includes("word")) {
+      } else if (fileToProcess.type.includes("word")) {
         setStatusMessage("Extracting text from Word document...");
         // For Word documents, we could implement text extraction here
         // For now we'll just set a placeholder
@@ -107,15 +108,16 @@ export const useDocumentProcessing = (
       // 4. Upload document and save metadata
       setStatusMessage("Saving document to storage...");
       await uploadDocumentToStorage(
-        file,
+        fileToProcess,
         classification,
         extractedText,
-        needsOcr(file),
+        needsOcr(fileToProcess),
         (uploadProgress) => {
           // Scale upload progress from 90% to 100% of the overall process
           const scaledProgress = 90 + Math.floor(uploadProgress * 0.1);
           setProgress(scaledProgress);
-        }
+        },
+        selectedProject
       );
 
       setStatusMessage("Processing complete!");
