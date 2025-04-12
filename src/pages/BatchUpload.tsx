@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Loader } from "lucide-react";
 import { useDocumentProcessing } from "@/hooks/useDocumentProcessing";
@@ -11,6 +11,7 @@ import LanguageSelector from "@/components/upload/LanguageSelector";
 import ProcessingIndicator from "@/components/upload/ProcessingIndicator";
 import ProjectSelector from "@/components/projects/ProjectSelector";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 
 const BatchUpload = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -88,11 +89,11 @@ const BatchUpload = () => {
   };
 
   // Update overall progress whenever file progress or current index changes
-  useState(() => {
+  useEffect(() => {
     if (isProcessing) {
       setOverallProgress(calculateOverallProgress());
     }
-  });
+  }, [isProcessing, fileProgress, currentFileIndex, files.length]);
 
   return (
     <div className="space-y-6">
@@ -122,6 +123,15 @@ const BatchUpload = () => {
               isDisabled={isProcessing}
               maxFiles={20}
             />
+
+            {files.length > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">File count:</span>
+                <Badge variant="outline" className="ml-auto">
+                  {files.length} of 20 maximum
+                </Badge>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <ModelSelector

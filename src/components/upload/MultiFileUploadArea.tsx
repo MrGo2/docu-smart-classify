@@ -33,10 +33,25 @@ const MultiFileUploadArea = ({
       
       // Check if adding these files would exceed the max limit
       if (files.length + acceptedFiles.length > maxFiles) {
-        const errorMsg = `You can only upload a maximum of ${maxFiles} files at once`;
-        setError(errorMsg);
-        onError(errorMsg);
-        return;
+        // Calculate how many more files can be added
+        const remainingSlots = Math.max(0, maxFiles - files.length);
+        
+        if (remainingSlots === 0) {
+          // No more files can be added
+          const errorMsg = `You can only upload a maximum of ${maxFiles} files at once`;
+          setError(errorMsg);
+          onError(errorMsg);
+          return;
+        } else {
+          // Take only the files that fit in the remaining slots
+          acceptedFiles = acceptedFiles.slice(0, remainingSlots);
+          const warningMsg = `Only adding ${remainingSlots} more file${remainingSlots !== 1 ? 's' : ''} to stay within the limit of ${maxFiles}`;
+          setError(warningMsg);
+          onError(warningMsg);
+        }
+      } else {
+        // Clear any previous errors when adding files normally
+        setError(null);
       }
 
       // Validate all files
@@ -60,7 +75,6 @@ const MultiFileUploadArea = ({
         return;
       }
 
-      setError(null);
       onFilesSelect(acceptedFiles);
     },
     [files, onFilesSelect, onError, supportedTypes, maxFiles]
@@ -108,7 +122,7 @@ const MultiFileUploadArea = ({
       </div>
 
       {error && (
-        <Alert variant="destructive">
+        <Alert variant={error.includes("Only adding") ? "default" : "destructive"}>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
