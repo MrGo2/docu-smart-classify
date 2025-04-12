@@ -1,9 +1,9 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { Loader } from "lucide-react";
+import { Loader, X, CheckCircle2, Ban } from "lucide-react";
 import { useDocumentProcessing } from "@/hooks/useDocumentProcessing";
 import MultiFileUploadArea from "@/components/upload/MultiFileUploadArea";
 import ModelSelector from "@/components/upload/ModelSelector";
@@ -15,13 +15,19 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ExtractionStrategy } from "@/lib/extraction/types";
 
+// Constants
+const MAX_BATCH_FILES = 20;
+
 const BatchUpload = () => {
+  // File management
   const [files, setFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [overallProgress, setOverallProgress] = useState(0);
   const [extractionStrategy, setExtractionStrategy] = useState<ExtractionStrategy>(ExtractionStrategy.FIRST_PAGE);
   const [processingError, setProcessingError] = useState<string | null>(null);
+  const [failedFiles, setFailedFiles] = useState<{name: string, error: string}[]>([]);
+  const processingCancelled = useRef(false);
   
   const {
     modelSelection,
@@ -38,20 +44,49 @@ const BatchUpload = () => {
   } = useDocumentProcessing(
     () => {},
     () => {
-      // When current file completes
+      // When current file completes successfully
       handleFileComplete(true);
     },
     (error) => {
-      // Log the error but continue processing
+      // When current file encounters an error
+      const currentFileName = files[currentFileIndex]?.name || "Unknown file";
+      
+      // Track failed files
+      setFailedFiles(prev => [...prev, {
+        name: currentFileName,
+        error: error
+      }]);
+      
+      // Show toast for the error
+      toast.error(`Error processing "${currentFileName}": ${error}`);
+      
+      // Set error state for display
       setProcessingError(error);
-      toast.error(`Error processing "${files[currentFileIndex]?.name}": ${error}`);
       
       // Continue with next file despite error
       handleFileComplete(false);
     }
   );
 
-  const handleFileComplete = (success: boolean) => {
+  // Reset failed files when starting a new batch
+  useEffect(() => {
+    if (!isProcessing) {
+      setFailedFiles([]);
+    }
+  }, [isProcessing]);
+
+  // Handler for file completion (success or error)
+  const handleFileComplete = useCallback((success: boolean) => {
+    if (processingCancelled.current) {
+      // If processing was cancelled, reset everything
+      setProcessingError(null);
+      processingCancelled.current = false;
+      setIsProcessing(false);
+      setOverallProgress(0);
+      toast.info("Batch processing cancelled");
+      return;
+    }
+    
     if (currentFileIndex < files.length - 1) {
       // Process next file after a short delay
       setTimeout(() => {
@@ -62,31 +97,40 @@ const BatchUpload = () => {
       // All files processed
       setIsProcessing(false);
       setProcessingError(null);
-      toast.success(`Completed processing ${files.length} documents. ${
-        success ? '' : 'Some files may have encountered errors.'
-      }`);
-      setFiles([]);
-      setCurrentFileIndex(0);
+      
+      // Display appropriate completion message based on success/failure count
+      if (failedFiles.length === 0) {
+        toast.success(`Successfully processed all ${files.length} documents`);
+      } else {
+        toast.success(
+          `Completed processing ${files.length} documents. ` +
+          `${files.length - failedFiles.length} succeeded, ` +
+          `${failedFiles.length} failed.`
+        );
+      }
+      
+      // Complete the progress indicator
       setOverallProgress(100);
     }
-  };
-
-  const handleFilesSelect = (selectedFiles: File[]) => {
+  }, [currentFileIndex, files.length, failedFiles.length]);
+  
+  // File selection handlers
+  const handleFilesSelect = useCallback((selectedFiles: File[]) => {
     setFiles(prev => [...prev, ...selectedFiles]);
-  };
+  }, []);
 
-  const handleRemoveFile = (index: number) => {
+  const handleRemoveFile = useCallback((index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
-  };
+  }, []);
 
-  // Update the extraction strategy in the document processing hook when it changes in this component
+  // Update extraction strategy in document processing hook when local state changes
   useEffect(() => {
     setDocProcessingExtractionStrategy(extractionStrategy);
   }, [extractionStrategy, setDocProcessingExtractionStrategy]);
 
-  // Process the next file in the queue
+  // Process the next file in the queue when currentFileIndex changes
   useEffect(() => {
-    if (isProcessing && files[currentFileIndex]) {
+    if (isProcessing && files[currentFileIndex] && !processingCancelled.current) {
       const processCurrentFile = async () => {
         try {
           await processDocument(files[currentFileIndex]);
@@ -101,36 +145,42 @@ const BatchUpload = () => {
       
       processCurrentFile();
     }
-  }, [currentFileIndex, isProcessing]);
+  }, [currentFileIndex, files, isProcessing, processDocument, handleFileComplete]);
 
-  const handleProcessAllDocuments = async () => {
+  // Start processing all documents
+  const handleProcessAllDocuments = useCallback(() => {
     if (!files.length || !selectedProject) return;
     
     setIsProcessing(true);
     setCurrentFileIndex(0);
     setOverallProgress(0);
     setProcessingError(null);
+    setFailedFiles([]);
+    processingCancelled.current = false;
     
-    // The useEffect will handle starting the first document processing
-  };
+    // The useEffect watching currentFileIndex will trigger the first document process
+  }, [files.length, selectedProject]);
 
-  // Calculate overall progress
-  const calculateOverallProgress = () => {
+  // Cancel ongoing processing
+  const handleCancelProcessing = useCallback(() => {
+    processingCancelled.current = true;
+    toast.info("Cancelling after current file completes...");
+  }, []);
+
+  // Calculate overall progress based on current file index and current file progress
+  const calculateOverallProgress = useCallback(() => {
     if (files.length === 0) return 0;
     
     const fileContribution = 100 / files.length;
-    return Math.min(
-      Math.floor(currentFileIndex * fileContribution + (fileProgress * fileContribution / 100)),
-      99
-    );
-  };
+    return Math.floor(currentFileIndex * fileContribution + (fileProgress * fileContribution / 100));
+  }, [currentFileIndex, fileProgress, files.length]);
 
   // Update overall progress whenever file progress or current index changes
   useEffect(() => {
     if (isProcessing) {
       setOverallProgress(calculateOverallProgress());
     }
-  }, [isProcessing, fileProgress, currentFileIndex, files.length]);
+  }, [isProcessing, calculateOverallProgress]);
 
   return (
     <div className="space-y-6">
@@ -158,14 +208,14 @@ const BatchUpload = () => {
               onRemoveFile={handleRemoveFile}
               onError={(err) => toast.error(err)}
               isDisabled={isProcessing}
-              maxFiles={20}
+              maxFiles={MAX_BATCH_FILES}
             />
 
             {files.length > 0 && (
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">File count:</span>
                 <Badge variant="outline" className="ml-auto">
-                  {files.length} of 20 maximum
+                  {files.length} of {MAX_BATCH_FILES} maximum
                 </Badge>
               </div>
             )}
@@ -190,20 +240,36 @@ const BatchUpload = () => {
               disabled={isProcessing || files.length === 0}
             />
             
-            <Button
-              className="w-full"
-              onClick={handleProcessAllDocuments}
-              disabled={isProcessing || files.length === 0 || !selectedProject}
-            >
-              {isProcessing ? (
-                <span className="flex items-center">
-                  <Loader className="mr-2 h-4 w-4 animate-spin" /> 
-                  Processing {currentFileIndex + 1} of {files.length}
-                </span>
+            <div className="flex gap-2">
+              {!isProcessing ? (
+                <Button
+                  className="flex-1"
+                  onClick={handleProcessAllDocuments}
+                  disabled={isProcessing || files.length === 0 || !selectedProject}
+                >
+                  <CheckCircle2 className="mr-1" />
+                  {`Process ${files.length} Document${files.length !== 1 ? 's' : ''}`}
+                </Button>
               ) : (
-                `Process ${files.length} Document${files.length !== 1 ? 's' : ''}`
+                <>
+                  <Button 
+                    className="flex-1" 
+                    disabled 
+                    variant="outline"
+                  >
+                    <Loader className="mr-2 h-4 w-4 animate-spin" /> 
+                    Processing {currentFileIndex + 1} of {files.length}
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleCancelProcessing}
+                  >
+                    <Ban className="mr-1" />
+                    Cancel
+                  </Button>
+                </>
               )}
-            </Button>
+            </div>
             
             {isProcessing && (
               <div className="space-y-4">
@@ -225,10 +291,33 @@ const BatchUpload = () => {
                   <ProcessingIndicator
                     isProcessing={isProcessing}
                     progress={fileProgress}
-                    statusMessage={processingError || statusMessage}
+                    statusMessage={statusMessage}
                     ocrLanguage={ocrLanguage}
                     error={processingError}
+                    warnings={failedFiles.map(f => `Failed: ${f.name}`)}
                   />
+                </div>
+              </div>
+            )}
+            
+            {!isProcessing && failedFiles.length > 0 && (
+              <div className="mt-4">
+                <Alert variant="warning" className="bg-amber-50 border-amber-200 text-amber-800">
+                  <AlertCircle className="h-4 w-4 mr-2 text-amber-500" />
+                  <AlertDescription>
+                    {`${failedFiles.length} file${failedFiles.length > 1 ? 's' : ''} failed processing`}
+                  </AlertDescription>
+                </Alert>
+                <div className="mt-2 max-h-40 overflow-y-auto border rounded-md p-2">
+                  <ul className="space-y-1">
+                    {failedFiles.map((file, idx) => (
+                      <li key={idx} className="text-sm flex">
+                        <X className="h-4 w-4 text-red-500 mr-1 flex-shrink-0" />
+                        <span className="font-medium">{file.name}:</span>
+                        <span className="ml-1 text-gray-600 truncate">{file.error}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             )}
