@@ -4,7 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Document } from "@/types/document";
 import { toast } from "sonner";
 
-export const useDocuments = (refreshTrigger: number, limit?: number, page: number = 1) => {
+export const useDocuments = (
+  refreshTrigger: number, 
+  limit?: number, 
+  page: number = 1,
+  projectId?: string
+) => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -15,10 +20,24 @@ export const useDocuments = (refreshTrigger: number, limit?: number, page: numbe
     const fetchDocuments = async () => {
       setLoading(true);
       try {
-        // First get the total count for pagination
-        const { count, error: countError } = await supabase
+        // Build the base query
+        let countQuery = supabase
           .from("documents")
           .select("*", { count: 'exact', head: true });
+          
+        let dataQuery = supabase
+          .from("documents")
+          .select("*")
+          .order("created_at", { ascending: false });
+        
+        // Apply project filter if provided
+        if (projectId) {
+          countQuery = countQuery.eq("project_id", projectId);
+          dataQuery = dataQuery.eq("project_id", projectId);
+        }
+        
+        // First get the total count for pagination
+        const { count, error: countError } = await countQuery;
           
         if (countError) throw countError;
         
@@ -32,16 +51,11 @@ export const useDocuments = (refreshTrigger: number, limit?: number, page: numbe
         // Then fetch the actual data with pagination
         const startIndex = limit ? (page - 1) * limit : 0;
         
-        let query = supabase
-          .from("documents")
-          .select("*")
-          .order("created_at", { ascending: false });
-
         if (limit) {
-          query = query.range(startIndex, startIndex + limit - 1);
+          dataQuery = dataQuery.range(startIndex, startIndex + limit - 1);
         }
 
-        const { data, error } = await query;
+        const { data, error } = await dataQuery;
 
         if (error) throw error;
         setDocuments(data || []);
@@ -53,7 +67,7 @@ export const useDocuments = (refreshTrigger: number, limit?: number, page: numbe
     };
 
     fetchDocuments();
-  }, [refreshTrigger, limit, page]);
+  }, [refreshTrigger, limit, page, projectId]);
 
   const deleteDocument = async (documentId: string, storagePath: string, filename: string) => {
     setIsDeleting(true);

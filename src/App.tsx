@@ -10,6 +10,7 @@ import Documents from "./pages/Documents";
 import BatchUpload from "./pages/BatchUpload";
 import Extraction from "./pages/Extraction";
 import Settings from "./pages/Settings";
+import ProjectsManagement from "./pages/ProjectsManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="documents" element={<Documents />} />
             <Route path="batch-upload" element={<BatchUpload />} />
             <Route path="extraction" element={<Extraction />} />
+            <Route path="projects" element={<ProjectsManagement />} />
             <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
