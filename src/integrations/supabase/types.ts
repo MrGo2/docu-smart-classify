@@ -83,8 +83,10 @@ export type Database = {
       documents: {
         Row: {
           classification: string | null
+          classification_text: string | null
           created_at: string | null
           extracted_text: string | null
+          extraction_strategy: string | null
           file_size: number
           file_type: string
           filename: string
@@ -97,8 +99,10 @@ export type Database = {
         }
         Insert: {
           classification?: string | null
+          classification_text?: string | null
           created_at?: string | null
           extracted_text?: string | null
+          extraction_strategy?: string | null
           file_size: number
           file_type: string
           filename: string
@@ -111,8 +115,10 @@ export type Database = {
         }
         Update: {
           classification?: string | null
+          classification_text?: string | null
           created_at?: string | null
           extracted_text?: string | null
+          extraction_strategy?: string | null
           file_size?: number
           file_type?: string
           filename?: string

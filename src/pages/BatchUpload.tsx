@@ -10,14 +10,17 @@ import ModelSelector from "@/components/upload/ModelSelector";
 import LanguageSelector from "@/components/upload/LanguageSelector";
 import ProcessingIndicator from "@/components/upload/ProcessingIndicator";
 import ProjectSelector from "@/components/projects/ProjectSelector";
+import ExtractionStrategySelector from "@/components/upload/ExtractionStrategySelector";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { ExtractionStrategy } from "@/lib/extraction/types";
 
 const BatchUpload = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [overallProgress, setOverallProgress] = useState(0);
+  const [extractionStrategy, setExtractionStrategy] = useState<ExtractionStrategy>(ExtractionStrategy.FIRST_PAGE);
   
   const {
     modelSelection,
@@ -29,6 +32,7 @@ const BatchUpload = () => {
     setModelSelection,
     setOcrLanguage,
     setSelectedProject,
+    setExtractionStrategy: setDocProcessingExtractionStrategy,
     processDocument,
   } = useDocumentProcessing(
     () => {},
@@ -65,6 +69,11 @@ const BatchUpload = () => {
   const handleRemoveFile = (index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
+
+  // Update the extraction strategy in the document processing hook when it changes in this component
+  useEffect(() => {
+    setDocProcessingExtractionStrategy(extractionStrategy);
+  }, [extractionStrategy, setDocProcessingExtractionStrategy]);
 
   const handleProcessAllDocuments = async () => {
     if (!files.length || !selectedProject) return;
@@ -146,6 +155,12 @@ const BatchUpload = () => {
                 disabled={isProcessing || files.length === 0}
               />
             </div>
+            
+            <ExtractionStrategySelector
+              value={extractionStrategy}
+              onChange={setExtractionStrategy}
+              disabled={isProcessing || files.length === 0}
+            />
             
             <Button
               className="w-full"
