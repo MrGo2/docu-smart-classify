@@ -5,6 +5,8 @@ import { performOcr, needsOcr } from "@/utils/ocrProcessor";
 import { classifyDocument } from "@/services/aiClassifier";
 import { uploadDocumentToStorage } from "@/services/documentStorage";
 import { OcrLanguage } from "@/lib/ocr/types";
+import { ExtractionStrategy } from "@/lib/extraction/types";
+import { TextExtractionService } from "@/lib/extraction/textExtractionService";
 
 export const useDocumentProcessing = (
   onProcessingStart: () => void,
@@ -14,6 +16,7 @@ export const useDocumentProcessing = (
   const [file, setFile] = useState<File | null>(null);
   const [modelSelection, setModelSelection] = useState<string>("openai");
   const [ocrLanguage, setOcrLanguage] = useState<OcrLanguage>("spa"); // Default to Spanish
+  const [extractionStrategy, setExtractionStrategy] = useState<ExtractionStrategy>(ExtractionStrategy.FIRST_PAGE);
   const [progress, setProgress] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>("");
@@ -75,11 +78,12 @@ export const useDocumentProcessing = (
       const isContentExtractable = canExtractContent(fileToProcess.type);
 
       // 2. Extract text if needed using OCR (only for supported file types)
-      let extractedText = "";
+      let extractedFullText = "";
+      let classificationText = "";
       if (isContentExtractable) {
         if (needsOcr(fileToProcess)) {
           setStatusMessage(`Performing OCR text extraction with ${ocrLanguage === 'spa' ? 'Spanish' : 'English'} language model...`);
-          extractedText = await performOcr(fileToProcess, (ocrProgress) => {
+          extractedFullText = await performOcr(fileToProcess, (ocrProgress) => {
             // Scale OCR progress from 5% to 75% of the overall process
             const scaledProgress = 5 + Math.floor(ocrProgress * 0.7);
             setProgress(scaledProgress);
@@ -96,9 +100,21 @@ export const useDocumentProcessing = (
           setStatusMessage("Extracting text from Word document...");
           // For Word documents, we could implement text extraction here
           // For now we'll just set a placeholder
-          extractedText = "Text extraction from Word documents not implemented";
+          extractedFullText = "Text extraction from Word documents not implemented";
           setProgress(75);
         }
+
+        // Apply extraction strategy to the full text for classification
+        setStatusMessage(`Applying ${extractionStrategy} extraction strategy...`);
+        const extractionResult = TextExtractionService.extractTextForClassification(
+          extractedFullText, 
+          ["=== PAGE BREAK ==="], 
+          {
+            strategy: extractionStrategy,
+            maxClassificationLength: 2000 // Limit text for classification to 2000 chars
+          }
+        );
+        classificationText = extractionResult.classificationText;
       } else {
         // For unsupported file types, we'll just use metadata
         setStatusMessage("Unsupported file type for content extraction, using metadata only...");
@@ -108,7 +124,7 @@ export const useDocumentProcessing = (
       // 3. Classify the document using AI based on extracted text and metadata
       setStatusMessage("Classifying document with AI...");
       const classification = await classifyDocument(
-        extractedText,
+        classificationText,
         apiKey,
         modelSelection,
         (classifyProgress) => {
@@ -124,7 +140,9 @@ export const useDocumentProcessing = (
       await uploadDocumentToStorage(
         fileToProcess,
         classification,
-        extractedText,
+        extractedFullText,
+        classificationText,
+        extractionStrategy,
         needsOcr(fileToProcess) && isContentExtractable,
         (uploadProgress) => {
           // Scale upload progress from 90% to 100% of the overall process
@@ -149,6 +167,7 @@ export const useDocumentProcessing = (
     file,
     modelSelection,
     ocrLanguage,
+    extractionStrategy,
     progress,
     isProcessing,
     statusMessage,
@@ -156,6 +175,7 @@ export const useDocumentProcessing = (
     selectedProject,
     setModelSelection,
     setOcrLanguage,
+    setExtractionStrategy,
     setSelectedProject,
     handleFileSelect,
     processDocument

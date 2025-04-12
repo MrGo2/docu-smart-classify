@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Download, FileText } from "lucide-react";
+import { ExtractionStrategy } from "@/lib/extraction/types";
 
 interface Document {
   id: string;
@@ -13,6 +14,8 @@ interface Document {
   storage_path: string;
   classification: string | null;
   extracted_text: string | null;
+  classification_text?: string | null;
+  extraction_strategy?: string | null;
   metadata?: Record<string, any>;
 }
 
@@ -68,6 +71,24 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       URL.revokeObjectURL(downloadUrl);
     } catch (err) {
       console.error("Download error:", err);
+    }
+  };
+
+  // Format extraction strategy for display
+  const getExtractionStrategyDisplay = (strategy: string | null | undefined): string => {
+    if (!strategy) return "Full Text (Default)";
+    
+    switch (strategy) {
+      case ExtractionStrategy.FIRST_PAGE:
+        return "First Page Only";
+      case ExtractionStrategy.FIRST_LAST:
+        return "First & Last Pages";
+      case ExtractionStrategy.FIRST_MIDDLE_LAST:
+        return "First, Middle & Last Pages";
+      case ExtractionStrategy.ALL:
+        return "All Document Text";
+      default:
+        return strategy;
     }
   };
 
@@ -151,6 +172,9 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
             {document.extracted_text && (
               <TabsTrigger value="text">Extracted Text</TabsTrigger>
             )}
+            {document.classification_text && (
+              <TabsTrigger value="classification_text">Classification Text</TabsTrigger>
+            )}
           </TabsList>
         </div>
 
@@ -185,8 +209,8 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
                 <p>{document.classification || "Unclassified"}</p>
               </div>
               <div className="space-y-2">
-                <p className="text-sm font-medium text-gray-500">Storage Path</p>
-                <p className="truncate">{document.storage_path}</p>
+                <p className="text-sm font-medium text-gray-500">Extraction Strategy</p>
+                <p>{getExtractionStrategyDisplay(document.extraction_strategy)}</p>
               </div>
             </div>
             
@@ -201,6 +225,20 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
           <TabsContent value="text" className="p-6">
             <div className="border rounded-md p-4 bg-gray-50 overflow-auto max-h-[60vh]">
               <pre className="text-sm whitespace-pre-wrap">{document.extracted_text}</pre>
+            </div>
+          </TabsContent>
+        )}
+
+        {document.classification_text && (
+          <TabsContent value="classification_text" className="p-6">
+            <div className="mb-4">
+              <h3 className="text-sm font-medium mb-2">Text used for classification ({getExtractionStrategyDisplay(document.extraction_strategy)})</h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                This is the subset of text that was sent to the AI for document classification.
+              </p>
+            </div>
+            <div className="border rounded-md p-4 bg-gray-50 overflow-auto max-h-[60vh]">
+              <pre className="text-sm whitespace-pre-wrap">{document.classification_text}</pre>
             </div>
           </TabsContent>
         )}

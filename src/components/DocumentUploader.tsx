@@ -7,6 +7,7 @@ import ModelSelector from "@/components/upload/ModelSelector";
 import ProcessingIndicator from "@/components/upload/ProcessingIndicator";
 import LanguageSelector from "@/components/upload/LanguageSelector";
 import ProjectSelector from "@/components/projects/ProjectSelector";
+import ExtractionStrategySelector from "@/components/upload/ExtractionStrategySelector";
 
 interface DocumentUploaderProps {
   onProcessingStart: () => void;
@@ -25,12 +26,14 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     file,
     modelSelection,
     ocrLanguage,
+    extractionStrategy,
     progress,
     statusMessage,
     supportedTypes,
     selectedProject,
     setModelSelection,
     setOcrLanguage,
+    setExtractionStrategy,
     setSelectedProject,
     handleFileSelect,
     processDocument,
@@ -75,6 +78,12 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           disabled={isProcessing || !file}
         />
       </div>
+      
+      <ExtractionStrategySelector
+        value={extractionStrategy}
+        onChange={setExtractionStrategy}
+        disabled={isProcessing || !file}
+      />
       
       <Button
         className="w-full"

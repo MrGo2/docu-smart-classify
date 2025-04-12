@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { getFileExtension } from "@/utils/ocrProcessor";
+import { ExtractionStrategy } from "@/lib/extraction/types";
 
 /**
  * Extracts metadata from a file
@@ -33,6 +34,8 @@ export const uploadDocumentToStorage = async (
   file: File,
   classification: string,
   extractedText: string,
+  classificationText: string,
+  extractionStrategy: ExtractionStrategy,
   ocrProcessed: boolean,
   onProgressUpdate: (progress: number) => void,
   projectId?: string
@@ -60,6 +63,7 @@ export const uploadDocumentToStorage = async (
     
     // 2. Save document metadata to the database - sanitize text first
     const sanitizedText = sanitizeText(extractedText);
+    const sanitizedClassificationText = sanitizeText(classificationText);
     
     const { error: insertError } = await supabase.from("documents").insert({
       filename: file.name,
@@ -68,6 +72,8 @@ export const uploadDocumentToStorage = async (
       storage_path: storagePath,
       classification: classification,
       extracted_text: sanitizedText,
+      classification_text: sanitizedClassificationText,
+      extraction_strategy: extractionStrategy,
       ocr_processed: ocrProcessed,
       project_id: projectId || null,
       metadata: metadata
