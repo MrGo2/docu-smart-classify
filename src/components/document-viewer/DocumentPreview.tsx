@@ -1,6 +1,6 @@
 
 import React from "react";
-import { Loader2, FileText, Download } from "lucide-react";
+import { Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface DocumentPreviewProps {
@@ -69,7 +69,6 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           Preview not available for {fileType.split("/")[1]} files
         </p>
         <Button className="mt-4" onClick={onDownload}>
-          <Download className="h-4 w-4 mr-2" />
           Download to view
         </Button>
       </div>

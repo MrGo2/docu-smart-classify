@@ -45,6 +45,7 @@ export const useDocumentUrl = (
           ? `Failed to load document: ${err.message}` 
           : "Failed to load document"
       );
+      toast.error("Failed to load document URL");
     } finally {
       setLoading(false);
     }
