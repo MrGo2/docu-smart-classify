@@ -89,6 +89,7 @@ export type Database = {
           file_type: string
           filename: string
           id: string
+          metadata: Json | null
           ocr_processed: boolean | null
           project_id: string | null
           storage_path: string | null
@@ -102,6 +103,7 @@ export type Database = {
           file_type: string
           filename: string
           id?: string
+          metadata?: Json | null
           ocr_processed?: boolean | null
           project_id?: string | null
           storage_path?: string | null
@@ -115,6 +117,7 @@ export type Database = {
           file_type?: string
           filename?: string
           id?: string
+          metadata?: Json | null
           ocr_processed?: boolean | null
           project_id?: string | null
           storage_path?: string | null
