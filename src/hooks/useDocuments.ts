@@ -58,7 +58,14 @@ export const useDocuments = (
         const { data, error } = await dataQuery;
 
         if (error) throw error;
-        setDocuments(data || []);
+        
+        // Convert the data to the Document type, ensuring metadata is properly typed
+        const typedDocuments: Document[] = (data || []).map(doc => ({
+          ...doc,
+          metadata: doc.metadata as Record<string, any> | null
+        }));
+        
+        setDocuments(typedDocuments);
       } catch (error) {
         console.error("Error fetching documents:", error);
       } finally {

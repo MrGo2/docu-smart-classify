@@ -8,6 +8,7 @@ export interface Document {
   classification: string | null;
   created_at: string;
   extracted_text: string | null;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, any> | null;
   project_id?: string | null;
+  ocr_processed?: boolean | null;
 }
