@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,6 +10,28 @@ import { Document } from "@/types/document";
 interface DocumentViewerProps {
   document: Document;
 }
+
+// Function to format text into clean markdown
+const formatToMarkdown = (text: string): string => {
+  if (!text) return '';
+  
+  // Split into paragraphs
+  const paragraphs = text.split(/\n{2,}/);
+  
+  // Process each paragraph
+  return paragraphs.map(paragraph => {
+    // Handle page breaks
+    if (paragraph.trim() === '=== PAGE BREAK ===') {
+      return '\n---\n'; // Markdown horizontal rule for page breaks
+    }
+    
+    // Clean up extra whitespace
+    return paragraph
+      .trim()
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .replace(/\n/g, ' '); // Replace single newlines with spaces
+  }).join('\n\n'); // Join paragraphs with double newlines
+};
 
 const DocumentViewer = ({ document }: DocumentViewerProps) => {
   const { fileUrl, loading, error, refresh } = useDocumentUrl(document.storage_path);
@@ -69,22 +90,44 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
 
         {document.extracted_text && (
           <TabsContent value="text" className="p-6">
-            <div className="border rounded-md p-4 bg-gray-50 overflow-auto max-h-[60vh]">
-              <pre className="text-sm whitespace-pre-wrap">{document.extracted_text}</pre>
+            <div className="border rounded-md bg-white overflow-auto max-h-[60vh]">
+              <div className="p-4 border-b bg-gray-50">
+                <h3 className="text-sm font-medium">Extracted Text</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Full text extracted from the document using OCR or direct text extraction.
+                </p>
+              </div>
+              <div className="p-4 prose prose-sm max-w-none">
+                {formatToMarkdown(document.extracted_text).split('\n').map((line, index) => (
+                  <React.Fragment key={index}>
+                    {line.trim() === '---' ? (
+                      <div className="my-4 text-gray-400 text-center text-sm border-t pt-2">
+                        --- Page Break ---
+                      </div>
+                    ) : (
+                      <p className="mb-4 last:mb-0">{line}</p>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
             </div>
           </TabsContent>
         )}
 
         {document.classification_text && (
           <TabsContent value="classification_text" className="p-6">
-            <div className="mb-4">
-              <h3 className="text-sm font-medium mb-2">Text used for classification</h3>
-              <p className="text-xs text-muted-foreground mb-4">
-                This is the subset of text that was sent to the AI for document classification.
-              </p>
-            </div>
-            <div className="border rounded-md p-4 bg-gray-50 overflow-auto max-h-[60vh]">
-              <pre className="text-sm whitespace-pre-wrap">{document.classification_text}</pre>
+            <div className="border rounded-md bg-white overflow-auto max-h-[60vh]">
+              <div className="p-4 border-b bg-gray-50">
+                <h3 className="text-sm font-medium">Classification Text</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  This is the subset of text that was sent to the AI for document classification.
+                </p>
+              </div>
+              <div className="p-4 prose prose-sm max-w-none">
+                {formatToMarkdown(document.classification_text).split('\n').map((line, index) => (
+                  <p key={index} className="mb-4 last:mb-0">{line}</p>
+                ))}
+              </div>
             </div>
           </TabsContent>
         )}

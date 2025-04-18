@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { getFileExtension } from "@/utils/ocrProcessor";
 import { ExtractionStrategy } from "@/lib/extraction/types";
@@ -17,14 +16,23 @@ const extractFileMetadata = (file: File): Record<string, any> => {
 };
 
 /**
- * Sanitizes text to remove invalid Unicode escape sequences
- * that cause PostgreSQL errors
+ * Sanitizes text to remove invalid Unicode escape sequences and control characters
+ * that could cause PostgreSQL errors or display issues
  */
 const sanitizeText = (text: string): string => {
   if (!text) return "";
   
-  // Replace null bytes (\u0000) which cause PostgreSQL errors
-  return text.replace(/\u0000/g, " ");
+  return text
+    // Replace null bytes which cause PostgreSQL errors
+    .replace(/\u0000/g, " ")
+    // Replace other control characters except newlines and tabs
+    .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, "")
+    // Replace invalid surrogate pairs
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/g, "")
+    // Normalize Unicode to handle combining characters
+    .normalize('NFKC')
+    // Ensure the text is not empty after sanitization
+    || "";
 };
 
 /**
