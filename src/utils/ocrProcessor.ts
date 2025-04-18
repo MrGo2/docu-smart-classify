@@ -1,11 +1,27 @@
-
 import { OcrLanguage } from "@/lib/ocr/types";
 import { OcrFactory } from "@/lib/ocr/OcrFactory";
-import * as pdfjs from "pdfjs-dist";
+import { getDocument, GlobalWorkerOptions, PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 
 // Configure PDF.js worker
 const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.entry");
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
+
+// Memory-efficient canvas pool for PDF rendering
+const canvasPool: HTMLCanvasElement[] = [];
+
+const getCanvas = (width: number, height: number): HTMLCanvasElement => {
+  const canvas = canvasPool.pop() || document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+};
+
+const releaseCanvas = (canvas: HTMLCanvasElement) => {
+  // Clear the canvas before returning to pool
+  const ctx = canvas.getContext("2d");
+  ctx?.clearRect(0, 0, canvas.width, canvas.height);
+  canvasPool.push(canvas);
+};
 
 /**
  * Determines if a file needs OCR processing
@@ -22,7 +38,7 @@ export const getFileExtension = (fileName: string): string => {
 };
 
 /**
- * Performs OCR on a document
+ * Performs OCR on a document with improved memory management and error handling
  */
 export const performOcr = async (
   file: File,
@@ -31,30 +47,15 @@ export const performOcr = async (
   ocrProviderName: string = "paddleocr"
 ): Promise<{ text: string; detectedLanguage?: OcrLanguage }> => {
   try {
-    // Update progress to indicate we're starting
     onProgressUpdate(5);
     console.log(`Starting OCR for ${file.name} using ${ocrProviderName} with language: ${ocrLanguage}`);
     
-    let extractedText = "";
-    let detectedLanguage: OcrLanguage | undefined;
+    const result = file.type === "application/pdf"
+      ? await processPdf(file, onProgressUpdate, ocrLanguage, ocrProviderName)
+      : await processImage(file, onProgressUpdate, ocrLanguage, ocrProviderName);
     
-    if (file.type === "application/pdf") {
-      console.log("Processing PDF document");
-      const result = await processPdf(file, onProgressUpdate, ocrLanguage, ocrProviderName);
-      extractedText = result.text;
-      detectedLanguage = result.detectedLanguage;
-    } else if (file.type.startsWith("image/")) {
-      console.log("Processing image document");
-      const result = await processImage(file, onProgressUpdate, ocrLanguage, ocrProviderName);
-      extractedText = result.text;
-      detectedLanguage = result.detectedLanguage;
-    } else {
-      throw new Error("Unsupported file type for OCR");
-    }
-    
-    console.log(`OCR completed. Extracted text length: ${extractedText.length} characters`);
     onProgressUpdate(100);
-    return { text: extractedText, detectedLanguage };
+    return result;
   } catch (error) {
     console.error("OCR processing error:", error);
     throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -62,7 +63,63 @@ export const performOcr = async (
 };
 
 /**
- * Process a PDF file using OCR if needed
+ * Process a single PDF page with efficient resource management
+ */
+async function processPage(
+  page: PDFPageProxy,
+  pageNum: number,
+  numPages: number,
+  baseProgress: number,
+  onProgressUpdate: (progress: number) => void,
+  ocrLanguage: OcrLanguage,
+  ocrProviderName: string
+): Promise<{ text: string; detectedLanguage?: OcrLanguage }> {
+  try {
+    // Try direct text extraction first
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map((item: any) => "str" in item ? item.str : "")
+      .join(" ");
+
+    if (pageText.trim().length > 0) {
+      return { text: pageText };
+    }
+  } catch (error) {
+    console.warn(`Direct text extraction failed for page ${pageNum}, falling back to OCR`);
+  }
+
+  // Fall back to OCR
+  const viewport = page.getViewport({ scale: 2.0 });
+  const canvas = getCanvas(viewport.width, viewport.height);
+  const context = canvas.getContext("2d")!;
+
+  try {
+    await page.render({ canvasContext: context, viewport }).promise;
+    
+    const blob = await new Promise<Blob>((resolve) => {
+      canvas.toBlob((b) => resolve(b!), "image/png");
+    });
+    
+    const pageFile = new File([blob], `page-${pageNum}.png`, { type: "image/png" });
+    const ocr = OcrFactory.getProvider(ocrProviderName);
+    
+    const result = await ocr.extractText(
+      pageFile,
+      (p) => {
+        const scaledProgress = baseProgress + Math.floor(p * (80 / numPages));
+        onProgressUpdate(Math.min(scaledProgress, 90));
+      },
+      ocrLanguage
+    );
+
+    return result;
+  } finally {
+    releaseCanvas(canvas);
+  }
+}
+
+/**
+ * Process a PDF file using OCR if needed, with improved memory management
  */
 async function processPdf(
   file: File,
@@ -70,149 +127,62 @@ async function processPdf(
   ocrLanguage: OcrLanguage,
   ocrProviderName: string
 ): Promise<{ text: string; detectedLanguage?: OcrLanguage }> {
-  console.log("Loading PDF document");
-  
-  // Load the PDF document
   const arrayBuffer = await file.arrayBuffer();
-  const pdfDocument = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  const pdfDocument = await getDocument({ data: arrayBuffer }).promise;
   const numPages = pdfDocument.numPages;
   
   console.log(`PDF loaded successfully. Total pages: ${numPages}`);
   
-  let fullText = "";
   const textContents: string[] = [];
   let detectedLanguage: OcrLanguage | undefined;
   
-  // Process each page
-  for (let i = 1; i <= numPages; i++) {
-    // Update progress based on page number (scale from 10% to 90%)
-    const pageProgress = 10 + Math.floor((i / numPages) * 80);
-    onProgressUpdate(pageProgress);
+  // Process pages in batches to manage memory
+  const BATCH_SIZE = 3;
+  for (let i = 1; i <= numPages; i += BATCH_SIZE) {
+    const batch = Array.from(
+      { length: Math.min(BATCH_SIZE, numPages - i + 1) },
+      (_, index) => i + index
+    );
     
-    console.log(`Processing PDF page ${i} of ${numPages}`);
-    
-    // Get the page
-    const page = await pdfDocument.getPage(i);
-    
-    try {
-      // Try to extract text directly first
-      console.log(`Attempting to extract text from page ${i} directly`);
-      const textContent = await page.getTextContent();
-      
-      // Check if text was actually extracted
-      const pageText = textContent.items
-        .map((item: any) => "str" in item ? item.str : "")
-        .join(" ");
-      
-      if (pageText.trim().length > 0) {
-        console.log(`Successfully extracted ${pageText.length} characters of text from page ${i}`);
-        textContents.push(pageText);
-      } else {
-        console.log(`No text extracted directly from page ${i}, using OCR instead`);
+    const batchResults = await Promise.all(
+      batch.map(async (pageNum) => {
+        const page = await pdfDocument.getPage(pageNum);
+        const pageProgress = 10 + Math.floor((pageNum / numPages) * 80);
         
-        // Fall back to OCR for this page
-        const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        
-        console.log(`Rendering page ${i} to canvas at ${canvas.width}x${canvas.height}`);
-        
-        // Render the PDF page to the canvas
-        await page.render({
-          canvasContext: context!,
-          viewport,
-        }).promise;
-        
-        // Convert canvas to blob
-        const blob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((b) => resolve(b!), "image/png");
-        });
-        
-        // Create file from blob
-        const pageFile = new File([blob], `page-${i}.png`, { type: "image/png" });
-        
-        console.log(`Using OCR on rendered page ${i}`);
-        
-        // Use OCR on the rendered page
-        const ocr = OcrFactory.getProvider(ocrProviderName);
-        const result = await ocr.extractText(
-          pageFile,
-          (p) => {
-            // Scale OCR progress within this page's range
-            const scaledProgress = pageProgress + Math.floor(p * (80 / numPages));
-            onProgressUpdate(Math.min(scaledProgress, 90));
-          },
-          ocrLanguage
-        );
-        
-        console.log(`OCR result for page ${i}: ${result.text.length} characters`);
-        textContents.push(result.text);
-        
-        // Store detected language from first page (if auto-detection was used)
-        if (i === 1 && ocrLanguage === 'auto' && result.detectedLanguage) {
-          detectedLanguage = result.detectedLanguage;
-          console.log(`Detected language: ${detectedLanguage}`);
+        try {
+          return await processPage(
+            page,
+            pageNum,
+            numPages,
+            pageProgress,
+            onProgressUpdate,
+            ocrLanguage,
+            ocrProviderName
+          );
+        } finally {
+          // Clean up page object
+          page.cleanup();
         }
-      }
-    } catch (error) {
-      console.warn(`Error extracting text from page ${i}:`, error);
-      console.log(`Falling back to OCR for page ${i}`);
-      
-      // Fall back to OCR for this page if text extraction fails
-      const viewport = page.getViewport({ scale: 2.0 });
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d");
-      
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      
-      // Render the PDF page to the canvas
-      await page.render({
-        canvasContext: context!,
-        viewport,
-      }).promise;
-      
-      // Convert canvas to blob
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((b) => resolve(b!), "image/png");
-      });
-      
-      // Create file from blob
-      const pageFile = new File([blob], `page-${i}.png`, { type: "image/png" });
-      
-      // Use OCR on the rendered page
-      const ocr = OcrFactory.getProvider(ocrProviderName);
-      const result = await ocr.extractText(
-        pageFile,
-        (p) => {
-          // Scale OCR progress within this page's range
-          const scaledProgress = pageProgress + Math.floor(p * (80 / numPages));
-          onProgressUpdate(Math.min(scaledProgress, 90));
-        },
-        ocrLanguage
-      );
-      
+      })
+    );
+    
+    batchResults.forEach((result, index) => {
       textContents.push(result.text);
-      
-      // Store detected language from first page (if auto-detection was used)
-      if (i === 1 && ocrLanguage === 'auto' && result.detectedLanguage) {
+      if (batch[index] === 1 && ocrLanguage === 'auto' && result.detectedLanguage) {
         detectedLanguage = result.detectedLanguage;
       }
-    }
+    });
   }
   
-  // Combine all page texts
-  fullText = textContents.join("\n\n=== PAGE BREAK ===\n\n");
+  // Clean up PDF document
+  pdfDocument.cleanup();
   
-  console.log(`PDF processing complete. Total extracted text: ${fullText.length} characters`);
+  const fullText = textContents.join("\n\n=== PAGE BREAK ===\n\n");
   return { text: fullText, detectedLanguage };
 }
 
 /**
- * Process an image file using OCR
+ * Process an image file using OCR with improved error handling
  */
 async function processImage(
   file: File,
@@ -220,23 +190,21 @@ async function processImage(
   ocrLanguage: OcrLanguage,
   ocrProviderName: string
 ): Promise<{ text: string; detectedLanguage?: OcrLanguage }> {
-  console.log(`Processing image file: ${file.name}`);
-  
   const ocr = OcrFactory.getProvider(ocrProviderName);
-  const result = await ocr.extractText(
-    file,
-    (p) => {
-      // Scale OCR progress from 10% to 90%
-      const scaledProgress = 10 + Math.floor(p * 0.8);
-      onProgressUpdate(Math.min(scaledProgress, 90));
-    },
-    ocrLanguage
-  );
   
-  console.log(`Image OCR complete. Extracted text: ${result.text.length} characters`);
-  
-  return { 
-    text: result.text,
-    detectedLanguage: ocrLanguage === 'auto' ? result.detectedLanguage : undefined
-  };
+  try {
+    const result = await ocr.extractText(
+      file,
+      (p) => onProgressUpdate(10 + Math.floor(p * 80)),
+      ocrLanguage
+    );
+    
+    return {
+      text: result.text,
+      detectedLanguage: ocrLanguage === 'auto' ? result.detectedLanguage : undefined
+    };
+  } catch (error) {
+    console.error(`Image OCR failed:`, error);
+    throw new Error(`Image OCR failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
