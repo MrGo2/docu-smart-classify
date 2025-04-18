@@ -33,6 +33,7 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
   const [documentsToDelete, setDocumentsToDelete] = useState<string[]>([]);
   const [multiDeleteDialogOpen, setMultiDeleteDialogOpen] = useState(false);
   const [doubleConfirmOpen, setDoubleConfirmOpen] = useState(false);
+  const [isAllAcrossPagesSelected, setIsAllAcrossPagesSelected] = useState(false);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -79,20 +80,49 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
     let successCount = 0;
     let failCount = 0;
     
-    const docsToDelete = documents.filter(doc => documentsToDelete.includes(doc.id));
-    
-    for (const doc of docsToDelete) {
-      const success = await deleteDocument(doc.id, doc.storage_path, doc.filename);
-      if (success) {
-        successCount++;
-      } else {
-        failCount++;
+    if (documentsToDelete[0] === '*') {
+      let page = 1;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: docsToDelete } = await supabase
+          .from('documents')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range((page - 1) * limit, page * limit - 1);
+        
+        if (!docsToDelete || docsToDelete.length === 0) {
+          hasMore = false;
+          continue;
+        }
+
+        for (const doc of docsToDelete) {
+          const success = await deleteDocument(doc.id, doc.storage_path, doc.filename);
+          if (success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        }
+
+        page++;
+      }
+    } else {
+      const docsToDelete = documents.filter(doc => documentsToDelete.includes(doc.id));
+      for (const doc of docsToDelete) {
+        const success = await deleteDocument(doc.id, doc.storage_path, doc.filename);
+        if (success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
       }
     }
     
     setDoubleConfirmOpen(false);
     setMultiDeleteDialogOpen(false);
     setDocumentsToDelete([]);
+    setIsAllAcrossPagesSelected(false);
     
     if (successCount > 0) {
       toast.success(`Successfully deleted ${successCount} document${successCount !== 1 ? 's' : ''}`);
@@ -105,6 +135,11 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+  };
+
+  const handleSelectAllAcrossPages = () => {
+    setIsAllAcrossPagesSelected(!isAllAcrossPagesSelected);
+    setDocumentsToDelete(isAllAcrossPagesSelected ? [] : ['*']);
   };
 
   if (loading) {
@@ -131,16 +166,29 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
 
   return (
     <>
-      <DocumentsTable 
-        documents={documents}
-        onViewDocument={handleViewDocument}
-        onDeleteClick={handleDeleteClick}
-        onDeleteMultiple={handleMultiDeleteClick}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={handlePageChange}
-        totalCount={totalCount}
-      />
+      {loading ? (
+        <div className="flex justify-center items-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          <p>Loading documents...</p>
+        </div>
+      ) : documents.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <p>No documents processed yet</p>
+        </div>
+      ) : (
+        <DocumentsTable 
+          documents={documents}
+          onViewDocument={handleViewDocument}
+          onDeleteClick={handleDeleteClick}
+          onDeleteMultiple={handleMultiDeleteClick}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          totalCount={totalCount}
+          onSelectAllAcrossPages={handleSelectAllAcrossPages}
+          isAllAcrossPagesSelected={isAllAcrossPagesSelected}
+        />
+      )}
 
       <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
         <DialogContent className="max-w-4xl h-[80vh] p-0">

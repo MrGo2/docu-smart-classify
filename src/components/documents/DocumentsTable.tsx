@@ -17,6 +17,8 @@ interface DocumentsTableProps {
   totalPages: number;
   onPageChange: (page: number) => void;
   totalCount: number;
+  onSelectAllAcrossPages?: () => void;
+  isAllAcrossPagesSelected?: boolean;
 }
 
 const DocumentsTable = ({ 
@@ -27,12 +29,19 @@ const DocumentsTable = ({
   currentPage,
   totalPages,
   onPageChange,
-  totalCount
+  totalCount,
+  onSelectAllAcrossPages,
+  isAllAcrossPagesSelected
 }: DocumentsTableProps) => {
   const [selectedDocuments, setSelectedDocuments] = useState<Record<string, boolean>>({});
   const [allSelected, setAllSelected] = useState(false);
 
   const handleSelectAll = () => {
+    if (onSelectAllAcrossPages) {
+      onSelectAllAcrossPages();
+      return;
+    }
+
     const newSelectedState = !allSelected;
     setAllSelected(newSelectedState);
     
@@ -67,11 +76,16 @@ const DocumentsTable = ({
   };
 
   const selectedCount = getSelectedDocumentIds().length;
-  const hasSelection = selectedCount > 0;
+  const hasSelection = selectedCount > 0 || isAllAcrossPagesSelected;
+  const selectionCount = isAllAcrossPagesSelected ? totalCount : selectedCount;
 
   const handleDeleteSelected = () => {
     if (onDeleteMultiple && hasSelection) {
-      onDeleteMultiple(getSelectedDocumentIds());
+      if (isAllAcrossPagesSelected) {
+        onDeleteMultiple(['*']); // Special marker to indicate all documents
+      } else {
+        onDeleteMultiple(getSelectedDocumentIds());
+      }
     }
   };
 
@@ -80,7 +94,7 @@ const DocumentsTable = ({
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
           {totalCount} document{totalCount !== 1 ? 's' : ''}
-          {hasSelection && ` (${selectedCount} selected)`}
+          {hasSelection && ` (${selectionCount} selected)`}
         </div>
         
         {hasSelection && onDeleteMultiple && (
@@ -91,7 +105,7 @@ const DocumentsTable = ({
             className="flex items-center"
           >
             <Trash2 className="h-4 w-4 mr-1" />
-            Delete Selected ({selectedCount})
+            Delete Selected ({selectionCount})
           </Button>
         )}
       </div>
@@ -104,9 +118,9 @@ const DocumentsTable = ({
                 <TableHead className="w-[40px]">
                   <div className="flex items-center">
                     <Checkbox
-                      checked={allSelected && documents.length > 0}
+                      checked={isAllAcrossPagesSelected || (allSelected && documents.length > 0)}
                       onCheckedChange={handleSelectAll}
-                      aria-label="Select all documents"
+                      aria-label={isAllAcrossPagesSelected ? "Deselect all documents across all pages" : "Select all documents across all pages"}
                     />
                   </div>
                 </TableHead>
@@ -127,7 +141,7 @@ const DocumentsTable = ({
                 onView={onViewDocument}
                 onDelete={onDeleteClick}
                 onSelect={onDeleteMultiple ? handleSelectDocument : undefined}
-                isSelected={!!selectedDocuments[doc.id]}
+                isSelected={isAllAcrossPagesSelected || !!selectedDocuments[doc.id]}
               />
             ))}
           </TableBody>
