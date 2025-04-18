@@ -1,3 +1,4 @@
+
 import * as paddleOcr from '@paddle-js-models/ocr';
 
 const MODEL_CDN_URL = 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/';
@@ -58,6 +59,7 @@ export class OcrEngineManager {
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
           }
 
+          // Fix: Pass MODEL_CDN_URL as a string instead of an object
           await paddleOcr.init(MODEL_CDN_URL);
           console.log("PaddleOCR engine initialized successfully");
 

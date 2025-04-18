@@ -1,3 +1,4 @@
+
 import { OcrLanguage } from "@/lib/ocr/types";
 import { OcrFactory } from "@/lib/ocr/OcrFactory";
 import { getDocument, GlobalWorkerOptions, PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
@@ -45,7 +46,7 @@ export const performOcr = async (
   onProgressUpdate: (progress: number) => void,
   ocrLanguage: OcrLanguage = "auto",
   ocrProviderName: string = "paddleocr"
-): Promise<{ text: string; detectedLanguage?: OcrLanguage }> => {
+) => {
   try {
     onProgressUpdate(5);
     console.log(`Starting OCR for ${file.name} using ${ocrProviderName} with language: ${ocrLanguage}`);
@@ -81,11 +82,17 @@ async function processPage(
       .map((item: any) => "str" in item ? item.str : "")
       .join(" ");
 
-    if (pageText.trim().length > 0) {
+    console.log(`Page ${pageNum}: Direct extraction found ${pageText.length} characters`);
+
+    // If we have meaningful text content, use it (but use a stricter threshold)
+    // Some PDFs report empty strings or just whitespace as valid text
+    if (pageText.trim().length > 10) {
       return { text: pageText };
+    } else {
+      console.log(`Page ${pageNum}: Not enough text found (${pageText.length} chars), using OCR`);
     }
   } catch (error) {
-    console.warn(`Direct text extraction failed for page ${pageNum}, falling back to OCR`);
+    console.warn(`Direct text extraction failed for page ${pageNum}, falling back to OCR:`, error);
   }
 
   // Fall back to OCR
@@ -95,6 +102,7 @@ async function processPage(
 
   try {
     await page.render({ canvasContext: context, viewport }).promise;
+    console.log(`Page ${pageNum}: Rendered to canvas for OCR (${canvas.width}x${canvas.height})`);
     
     const blob = await new Promise<Blob>((resolve) => {
       canvas.toBlob((b) => resolve(b!), "image/png");
@@ -103,6 +111,7 @@ async function processPage(
     const pageFile = new File([blob], `page-${pageNum}.png`, { type: "image/png" });
     const ocr = OcrFactory.getProvider(ocrProviderName);
     
+    console.log(`Page ${pageNum}: Starting OCR processing`);
     const result = await ocr.extractText(
       pageFile,
       (p) => {
@@ -112,6 +121,7 @@ async function processPage(
       ocrLanguage
     );
 
+    console.log(`Page ${pageNum}: OCR extracted ${result.text.length} characters`);
     return result;
   } finally {
     releaseCanvas(canvas);
@@ -127,58 +137,68 @@ async function processPdf(
   ocrLanguage: OcrLanguage,
   ocrProviderName: string
 ): Promise<{ text: string; detectedLanguage?: OcrLanguage }> {
+  console.log(`PDF processing started for file: ${file.name} (${file.size} bytes)`);
   const arrayBuffer = await file.arrayBuffer();
-  const pdfDocument = await getDocument({ data: arrayBuffer }).promise;
-  const numPages = pdfDocument.numPages;
   
-  console.log(`PDF loaded successfully. Total pages: ${numPages}`);
-  
-  const textContents: string[] = [];
-  let detectedLanguage: OcrLanguage | undefined;
-  
-  // Process pages in batches to manage memory
-  const BATCH_SIZE = 3;
-  for (let i = 1; i <= numPages; i += BATCH_SIZE) {
-    const batch = Array.from(
-      { length: Math.min(BATCH_SIZE, numPages - i + 1) },
-      (_, index) => i + index
-    );
+  try {
+    const pdfDocument = await getDocument({ data: arrayBuffer }).promise;
+    const numPages = pdfDocument.numPages;
     
-    const batchResults = await Promise.all(
-      batch.map(async (pageNum) => {
-        const page = await pdfDocument.getPage(pageNum);
-        const pageProgress = 10 + Math.floor((pageNum / numPages) * 80);
-        
-        try {
-          return await processPage(
-            page,
-            pageNum,
-            numPages,
-            pageProgress,
-            onProgressUpdate,
-            ocrLanguage,
-            ocrProviderName
-          );
-        } finally {
-          // Clean up page object
-          page.cleanup();
+    console.log(`PDF loaded successfully. Total pages: ${numPages}`);
+    
+    const textContents: string[] = [];
+    let detectedLanguage: OcrLanguage | undefined;
+    
+    // Process pages in batches to manage memory
+    const BATCH_SIZE = 3;
+    for (let i = 1; i <= numPages; i += BATCH_SIZE) {
+      const batch = Array.from(
+        { length: Math.min(BATCH_SIZE, numPages - i + 1) },
+        (_, index) => i + index
+      );
+      
+      console.log(`Processing PDF batch: pages ${batch[0]}-${batch[batch.length-1]}`);
+      
+      const batchResults = await Promise.all(
+        batch.map(async (pageNum) => {
+          const page = await pdfDocument.getPage(pageNum);
+          const pageProgress = 10 + Math.floor((pageNum / numPages) * 80);
+          
+          try {
+            return await processPage(
+              page,
+              pageNum,
+              numPages,
+              pageProgress,
+              onProgressUpdate,
+              ocrLanguage,
+              ocrProviderName
+            );
+          } finally {
+            // Clean up page object
+            page.cleanup();
+          }
+        })
+      );
+      
+      batchResults.forEach((result, index) => {
+        textContents.push(result.text);
+        if (batch[index] === 1 && ocrLanguage === 'auto' && result.detectedLanguage) {
+          detectedLanguage = result.detectedLanguage;
         }
-      })
-    );
+      });
+    }
     
-    batchResults.forEach((result, index) => {
-      textContents.push(result.text);
-      if (batch[index] === 1 && ocrLanguage === 'auto' && result.detectedLanguage) {
-        detectedLanguage = result.detectedLanguage;
-      }
-    });
+    // Clean up PDF document
+    pdfDocument.cleanup();
+    
+    const fullText = textContents.join("\n\n=== PAGE BREAK ===\n\n");
+    console.log(`PDF processing complete. Total extracted: ${fullText.length} characters`);
+    return { text: fullText, detectedLanguage };
+  } catch (error) {
+    console.error(`PDF processing error for ${file.name}:`, error);
+    throw new Error(`Failed to process PDF: ${error instanceof Error ? error.message : String(error)}`);
   }
-  
-  // Clean up PDF document
-  pdfDocument.cleanup();
-  
-  const fullText = textContents.join("\n\n=== PAGE BREAK ===\n\n");
-  return { text: fullText, detectedLanguage };
 }
 
 /**
@@ -190,6 +210,7 @@ async function processImage(
   ocrLanguage: OcrLanguage,
   ocrProviderName: string
 ): Promise<{ text: string; detectedLanguage?: OcrLanguage }> {
+  console.log(`Image processing started for file: ${file.name} (${file.size} bytes)`);
   const ocr = OcrFactory.getProvider(ocrProviderName);
   
   try {
@@ -199,12 +220,13 @@ async function processImage(
       ocrLanguage
     );
     
+    console.log(`Image OCR complete. Extracted: ${result.text.length} characters`);
     return {
       text: result.text,
       detectedLanguage: ocrLanguage === 'auto' ? result.detectedLanguage : undefined
     };
   } catch (error) {
-    console.error(`Image OCR failed:`, error);
+    console.error(`Image OCR failed for ${file.name}:`, error);
     throw new Error(`Image OCR failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

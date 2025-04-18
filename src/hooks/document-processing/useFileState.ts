@@ -1,15 +1,17 @@
 
 import { useState } from "react";
-import { OcrLanguage } from "@/lib/ocr/types";
 import { ExtractionStrategy } from "@/lib/extraction/types";
+import { OcrLanguage } from "@/lib/ocr/types";
 
 export const useFileState = () => {
   const [file, setFile] = useState<File | null>(null);
   const [modelSelection, setModelSelection] = useState<string>("openai");
   const [ocrLanguage, setOcrLanguage] = useState<OcrLanguage>("auto");
   const [ocrProvider, setOcrProvider] = useState<string>("paddleocr");
-  const [extractionStrategy, setExtractionStrategy] = useState<ExtractionStrategy>(ExtractionStrategy.FIRST_PAGE);
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [extractionStrategy, setExtractionStrategy] = useState<ExtractionStrategy>(
+    ExtractionStrategy.FIRST_PAGE
+  );
+  const [selectedProject, setSelectedProject] = useState<string>("");
   const [detectedLanguage, setDetectedLanguage] = useState<OcrLanguage | null>(null);
 
   const handleFileSelect = (selectedFile: File) => {
@@ -18,13 +20,13 @@ export const useFileState = () => {
 
   return {
     file,
+    setFile,
     modelSelection,
     ocrLanguage,
     ocrProvider,
     extractionStrategy,
     selectedProject,
     detectedLanguage,
-    setFile, // Added the missing setFile function
     setModelSelection,
     setOcrLanguage,
     setOcrProvider,
