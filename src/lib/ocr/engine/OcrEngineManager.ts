@@ -14,17 +14,21 @@ export class OcrEngineManager {
         if (!this.ocrInstance) {
           console.log("Initializing PaddleOCR engine...");
           
-          // Initialize the OCR engine
-          await paddleOcr.init({
-            detPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/det.onnx',
-            recPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/rec.onnx',
-            wasmPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/'
-          });
-          
-          console.log("PaddleOCR engine initialized successfully");
-          
-          // Store the initialized module for later use
-          this.ocrInstance = paddleOcr;
+          try {
+            // Check the actual interface of the paddleOcr.init function
+            // The error suggests it expects a string, not an object
+            await paddleOcr.init(
+              'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/'
+            );
+            
+            console.log("PaddleOCR engine initialized successfully");
+            
+            // Store the initialized module for later use
+            this.ocrInstance = paddleOcr;
+          } catch (error) {
+            console.error("Failed to initialize PaddleOCR engine:", error);
+            throw error;
+          }
         }
         
         this.modelLoaded = true;

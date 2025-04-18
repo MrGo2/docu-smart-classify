@@ -24,6 +24,7 @@ export const useFileState = () => {
     extractionStrategy,
     selectedProject,
     detectedLanguage,
+    setFile, // Added the missing setFile function
     setModelSelection,
     setOcrLanguage,
     setOcrProvider,
