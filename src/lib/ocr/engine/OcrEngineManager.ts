@@ -1,10 +1,11 @@
 
 import * as paddleOcr from '@paddle-js-models/ocr';
 
+// Increased timeout values and added retry mechanism
 const MODEL_CDN_URL = 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/';
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000; // 1 second
-const INIT_TIMEOUT = 60000; // 60 seconds
+const RETRY_DELAY = 1500; // Increased to 1.5 seconds
+const INIT_TIMEOUT = 120000; // Increased to 120 seconds (2 minutes)
 const INIT_CHECK_INTERVAL = 200; // 200ms
 
 export class OcrEngineManager {
@@ -56,15 +57,29 @@ export class OcrEngineManager {
         try {
           if (attempt > 1) {
             console.log(`Retry attempt ${attempt} of ${MAX_RETRIES}...`);
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
           }
 
-          // Pass MODEL_CDN_URL as a string
+          // Check network connection before initializing
+          try {
+            const response = await fetch(MODEL_CDN_URL, { method: 'HEAD' });
+            if (!response.ok) {
+              throw new Error(`CDN URL not accessible: ${response.status} ${response.statusText}`);
+            }
+            console.log("CDN access check passed. Initializing OCR engine...");
+          } catch (networkError) {
+            console.error("Network connectivity issue:", networkError);
+            throw new Error(`Network error accessing OCR models: ${networkError.message}`);
+          }
+
+          // Initialize with progressive feedback
+          console.log("Loading OCR models from CDN...");
           await paddleOcr.init(MODEL_CDN_URL);
           console.log("PaddleOCR engine initialized successfully");
 
           // Test the engine with a simple recognition
           const testImage = await this.createTestImage();
+          console.log("Running engine test with sample image...");
           const testResult = await paddleOcr.recognize(testImage);
 
           if (!testResult || !Array.isArray(testResult)) {
@@ -73,6 +88,8 @@ export class OcrEngineManager {
 
           // Verify that the test text was recognized
           const recognizedText = this.extractTestText(testResult);
+          console.log(`Test recognition result: "${recognizedText}"`);
+          
           if (!recognizedText.toLowerCase().includes(this.TEST_TEXT.toLowerCase())) {
             throw new Error(`Engine initialization test failed: Expected "${this.TEST_TEXT}" but got "${recognizedText}"`);
           }

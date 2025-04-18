@@ -2,6 +2,7 @@ import { OcrLanguage, OcrOptions, OcrProvider, OcrResult, OcrBlock } from "../ty
 import { fileToImage } from "../utils/imageProcessing";
 import { detectLanguageFromText } from "../utils/languageDetection";
 import { OcrEngineManager } from "../engine/OcrEngineManager";
+import { TesseractProvider } from "./TesseractProvider";
 
 interface PaddleOcrBlock {
   text?: string;
@@ -73,6 +74,7 @@ export class PaddleOcrProvider implements OcrProvider {
   supportedLanguages: OcrLanguage[] = Object.keys(LANGUAGE_MAP) as OcrLanguage[];
   private engineManager = new OcrEngineManager();
   private cache = new Map<string, { result: PaddleOcrBlock[]; timestamp: number }>();
+  private tesseractFallback = new TesseractProvider();
   
   async extractText(
     file: File,
@@ -86,13 +88,23 @@ export class PaddleOcrProvider implements OcrProvider {
       
       // Initialize engine with proper error handling
       let engine;
+      let useFallback = false;
+      
       try {
         engine = await this.engineManager.getEngine();
         onProgressUpdate(30);
         console.log("PaddleOCR: Engine loaded successfully");
       } catch (error) {
         console.error("PaddleOCR: Engine initialization failed:", error);
-        throw new Error(`OCR engine initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+        console.warn("PaddleOCR: Falling back to Tesseract OCR provider");
+        useFallback = true;
+        onProgressUpdate(15);
+      }
+      
+      // If initialization failed, use Tesseract fallback
+      if (useFallback) {
+        console.log("Using Tesseract fallback for OCR processing");
+        return this.tesseractFallback.extractText(file, onProgressUpdate, language, options);
       }
       
       // Load and process image
@@ -129,7 +141,8 @@ export class PaddleOcrProvider implements OcrProvider {
           }
         } catch (error) {
           console.error("PaddleOCR: Recognition failed:", error);
-          throw new Error(`Text recognition failed: ${error instanceof Error ? error.message : String(error)}`);
+          console.warn("PaddleOCR: Attempting Tesseract fallback after recognition failure");
+          return this.tesseractFallback.extractText(file, onProgressUpdate, language, options);
         }
       }
       
