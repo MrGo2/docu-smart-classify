@@ -1,16 +1,14 @@
 export type OcrLanguage =
-  | "eng"
-  | "spa"
-  | "fra"
-  | "deu"
-  | "ita"
-  | "por"
-  | "rus"
-  | "chi_sim"
-  | "chi_tra"
-  | "jpn"
-  | "kor"
-  | "auto";
+  | "eng" // English
+  | "spa" // Spanish (Castilian)
+  | "fra" // French
+  | "deu" // German
+  | "ita" // Italian
+  | "por" // Portuguese
+  | "cat" // Catalan
+  | "eus" // Basque
+  | "glg" // Galician
+  | "auto"; // Automatic detection
 
 export interface OcrBlock {
   text: string;

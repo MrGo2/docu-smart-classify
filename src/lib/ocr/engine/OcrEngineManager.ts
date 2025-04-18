@@ -3,12 +3,15 @@ import * as paddleOcr from '@paddle-js-models/ocr';
 const MODEL_CDN_URL = 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
+const INIT_TIMEOUT = 60000; // 60 seconds
+const INIT_CHECK_INTERVAL = 200; // 200ms
 
 export class OcrEngineManager {
   private modelLoaded = false;
   private modelLoading = false;
   private ocrInstance: any = null;
   private initializationError: Error | null = null;
+  private initializationPromise: Promise<void> | null = null;
   private readonly TEST_TEXT = 'Hello World';
 
   async getEngine(): Promise<any> {
@@ -17,72 +20,92 @@ export class OcrEngineManager {
     }
 
     if (!this.modelLoaded) {
-      if (!this.modelLoading) {
-        this.modelLoading = true;
-        
-        if (!this.ocrInstance) {
-          console.log("Initializing PaddleOCR engine...");
-          
-          for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-            try {
-              if (attempt > 1) {
-                console.log(`Retry attempt ${attempt} of ${MAX_RETRIES}...`);
-                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-              }
+      if (!this.initializationPromise) {
+        this.initializationPromise = this.initializeEngine();
+      }
 
-              await paddleOcr.init(MODEL_CDN_URL);
-              console.log("PaddleOCR engine initialized successfully");
-              
-              // Test the engine with a simple recognition
-              const testImage = await this.createTestImage();
-              const testResult = await paddleOcr.recognize(testImage);
-              
-              if (!testResult || !Array.isArray(testResult)) {
-                throw new Error("Engine initialization test failed: Invalid result structure");
-              }
-
-              // Verify that the test text was recognized
-              const recognizedText = this.extractTestText(testResult);
-              if (!recognizedText.toLowerCase().includes(this.TEST_TEXT.toLowerCase())) {
-                throw new Error(`Engine initialization test failed: Expected "${this.TEST_TEXT}" but got "${recognizedText}"`);
-              }
-              
-              console.log("Engine test successful:", recognizedText);
-              this.ocrInstance = paddleOcr;
-              break;
-            } catch (error) {
-              console.error(`PaddleOCR initialization attempt ${attempt} failed:`, error);
-              if (attempt === MAX_RETRIES) {
-                this.initializationError = new Error(`Failed to initialize PaddleOCR after ${MAX_RETRIES} attempts: ${error.message}`);
-                throw this.initializationError;
-              }
-            }
-          }
-        }
-        
-        this.modelLoaded = true;
+      try {
+        await Promise.race([
+          this.initializationPromise,
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Timeout waiting for OCR engine initialization")), INIT_TIMEOUT)
+          )
+        ]);
+      } catch (error) {
+        this.initializationError = error instanceof Error ? error : new Error(String(error));
         this.modelLoading = false;
-      } else {
-        let waitTime = 0;
-        const maxWaitTime = 30000; // 30 seconds
-        
-        while (this.modelLoading && waitTime < maxWaitTime) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          waitTime += 100;
-        }
-        
-        if (this.modelLoading) {
-          throw new Error("Timeout waiting for OCR engine initialization");
-        }
+        this.initializationPromise = null;
+        throw this.initializationError;
       }
     }
-    
+
     return this.ocrInstance;
+  }
+
+  private async initializeEngine(): Promise<void> {
+    if (this.modelLoading || this.modelLoaded) {
+      return;
+    }
+
+    this.modelLoading = true;
+    console.log("Initializing PaddleOCR engine...");
+
+    try {
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          if (attempt > 1) {
+            console.log(`Retry attempt ${attempt} of ${MAX_RETRIES}...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          }
+
+          await paddleOcr.init(MODEL_CDN_URL);
+          console.log("PaddleOCR engine initialized successfully");
+
+          // Test the engine with a simple recognition
+          const testImage = await this.createTestImage();
+          const testResult = await paddleOcr.recognize(testImage);
+
+          if (!testResult || !Array.isArray(testResult)) {
+            throw new Error("Engine initialization test failed: Invalid result structure");
+          }
+
+          // Verify that the test text was recognized
+          const recognizedText = this.extractTestText(testResult);
+          if (!recognizedText.toLowerCase().includes(this.TEST_TEXT.toLowerCase())) {
+            throw new Error(`Engine initialization test failed: Expected "${this.TEST_TEXT}" but got "${recognizedText}"`);
+          }
+
+          console.log("Engine test successful:", recognizedText);
+          this.ocrInstance = paddleOcr;
+          this.modelLoaded = true;
+          return;
+
+        } catch (error) {
+          console.error(`PaddleOCR initialization attempt ${attempt} failed:`, error);
+          if (attempt === MAX_RETRIES) {
+            throw error;
+          }
+        }
+      }
+    } catch (error) {
+      this.initializationError = new Error(`Failed to initialize PaddleOCR: ${error.message}`);
+      throw this.initializationError;
+    } finally {
+      this.modelLoading = false;
+      this.initializationPromise = null;
+    }
+  }
+
+  private extractTestText(result: any[]): string {
+    return result
+      .map(block => block.text || '')
+      .join(' ')
+      .trim();
   }
 
   private async createTestImage(): Promise<HTMLImageElement> {
     const canvas = document.createElement('canvas');
-    canvas.width = 300; // Increased size for better recognition
+    canvas.width = 300;
     canvas.height = 100;
     
     const ctx = canvas.getContext('2d');
@@ -114,32 +137,8 @@ export class OcrEngineManager {
       const img = new Image();
       img.onload = () => resolve(img);
       img.onerror = () => reject(new Error('Failed to create test image'));
-      img.src = canvas.toDataURL('image/png', 1.0); // Use PNG for better quality
+      img.src = canvas.toDataURL('image/png', 1.0);
     });
-  }
-
-  private extractTestText(result: any[]): string {
-    try {
-      return result
-        .map(block => {
-          if (typeof block === 'object' && block !== null) {
-            if (typeof block.text === 'string') {
-              return block.text;
-            } else if (Array.isArray(block.words)) {
-              return block.words
-                .map((word: any) => typeof word === 'string' ? word : word.text)
-                .filter(Boolean)
-                .join(' ');
-            }
-          }
-          return '';
-        })
-        .filter(Boolean)
-        .join(' ');
-    } catch (error) {
-      console.error('Error extracting test text:', error);
-      return '';
-    }
   }
 
   async dispose(): Promise<void> {
@@ -156,6 +155,7 @@ export class OcrEngineManager {
         this.modelLoaded = false;
         this.modelLoading = false;
         this.initializationError = null;
+        this.initializationPromise = null;
       }
     }
   }
