@@ -8,6 +8,7 @@ import DocumentsTable from "./documents/DocumentsTable";
 import DeleteConfirmDialog from "./documents/DeleteConfirmDialog";
 import { useDocuments } from "@/hooks/useDocuments";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DocumentListProps {
   refreshTrigger: number;
