@@ -35,13 +35,18 @@ export class PaddleOcrProvider implements OcrProvider {
           onProgressUpdate(20);
           
           // Initialize PaddleOCR
+          // Note: paddleOcr is used as a namespace rather than using a 'load' method
           if (!this.ocrInstance) {
-            // Using the correct API based on paddleOcr's available methods
-            this.ocrInstance = await paddleOcr.load({
-              wasmPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/',
+            // For PaddleOCR v4.1.1, we need to create a direct instance
+            this.ocrInstance = new paddleOcr.OCREngine({
               detPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/assets/ppocr_det/',
               recPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/assets/ppocr_rec/',
+              // The wasm path might be used internally by the engine
+              wasmPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/',
             });
+            
+            // Initialize the OCR engine
+            await this.ocrInstance.init();
           }
           
           this.modelLoaded = true;
@@ -68,7 +73,7 @@ export class PaddleOcrProvider implements OcrProvider {
         try {
           // Since language detection might not be directly available in the API
           // We'll make a best effort based on the first few words of the OCR result
-          const initialRecognition = await this.ocrInstance.recognize(imageData);
+          const initialRecognition = await this.ocrInstance.detectText(imageData);
           
           // Simple language detection based on common Spanish words
           if (initialRecognition && initialRecognition.text) {
@@ -111,7 +116,7 @@ export class PaddleOcrProvider implements OcrProvider {
       };
       
       // Perform OCR on the image with the configured options
-      const result = await this.ocrInstance.recognize(imageData, recognitionOptions);
+      const result = await this.ocrInstance.detectText(imageData, recognitionOptions);
       
       onProgressUpdate(90);
       
