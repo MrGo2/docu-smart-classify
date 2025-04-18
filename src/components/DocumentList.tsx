@@ -1,12 +1,11 @@
 
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Document } from "@/types/document";
-import DocumentViewer from "./DocumentViewer";
 import DocumentsTable from "./documents/DocumentsTable";
 import DeleteConfirmDialog from "./documents/DeleteConfirmDialog";
 import DeleteMultipleDialog from "./documents/DeleteMultipleDialog";
 import DocumentsLoading from "./documents/DocumentsLoading";
+import DocumentViewerDialog from "./documents/DocumentViewerDialog";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useDocumentDeletion } from "@/hooks/useDocumentDeletion";
 
@@ -34,6 +33,8 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
     doubleConfirmOpen,
     isAllAcrossPagesSelected,
     setDeleteDialogOpen,
+    setMultiDeleteDialogOpen,
+    setDoubleConfirmOpen,
     setIsAllAcrossPagesSelected,
     handleDeleteClick,
     handleDeleteConfirm,
@@ -94,13 +95,11 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
         isAllAcrossPagesSelected={isAllAcrossPagesSelected}
       />
 
-      <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
-        <DialogContent className="max-w-4xl h-[80vh] p-0">
-          {selectedDocument && (
-            <DocumentViewer document={selectedDocument} />
-          )}
-        </DialogContent>
-      </Dialog>
+      <DocumentViewerDialog
+        document={selectedDocument}
+        isOpen={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
 
       <DeleteConfirmDialog
         document={documentToDelete}

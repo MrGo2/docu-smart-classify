@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Document } from "@/types/document";
 import { toast } from "sonner";
@@ -148,6 +147,8 @@ export const useDocumentDeletion = ({ documents, onDeleteSuccess, limit }: UseDo
     doubleConfirmOpen,
     isAllAcrossPagesSelected,
     setDeleteDialogOpen,
+    setMultiDeleteDialogOpen,
+    setDoubleConfirmOpen,
     setIsAllAcrossPagesSelected,
     handleDeleteClick,
     handleDeleteConfirm,
