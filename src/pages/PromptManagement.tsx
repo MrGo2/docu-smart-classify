@@ -1,7 +1,8 @@
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PromptList from "@/components/prompts/PromptList";
 import PromptEditor from "@/components/prompts/PromptEditor";
-import PromptTesting from "@/components/prompts/PromptTesting";
+import PromptGeneration from "@/components/prompts/PromptGeneration";
 
 const PromptManagement = () => {
   return (
@@ -13,8 +14,18 @@ const PromptManagement = () => {
           <PromptList />
         </div>
         <div className="lg:col-span-8 space-y-6">
-          <PromptEditor />
-          <PromptTesting />
+          <Tabs defaultValue="editor" className="w-full">
+            <TabsList className="grid grid-cols-2 mb-6">
+              <TabsTrigger value="editor">Prompt Editor</TabsTrigger>
+              <TabsTrigger value="generation">Prompt Generation</TabsTrigger>
+            </TabsList>
+            <TabsContent value="editor">
+              <PromptEditor />
+            </TabsContent>
+            <TabsContent value="generation">
+              <PromptGeneration />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

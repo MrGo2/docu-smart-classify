@@ -2,6 +2,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ApiKeyManager from "@/components/ApiKeyManager";
+import AiModelSettings from "@/components/settings/AiModelSettings";
 
 const Settings = () => {
   return (
@@ -11,6 +12,7 @@ const Settings = () => {
       <Tabs defaultValue="api-keys">
         <TabsList className="mb-4">
           <TabsTrigger value="api-keys">API Keys</TabsTrigger>
+          <TabsTrigger value="ai-settings">AI Settings</TabsTrigger>
           <TabsTrigger value="ocr">OCR Options</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
         </TabsList>
@@ -27,6 +29,10 @@ const Settings = () => {
               <ApiKeyManager />
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        <TabsContent value="ai-settings">
+          <AiModelSettings />
         </TabsContent>
         
         <TabsContent value="ocr">
