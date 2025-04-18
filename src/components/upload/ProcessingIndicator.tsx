@@ -11,10 +11,19 @@ interface ProcessingIndicatorProps {
   error?: string | null;
   statusMessage?: string;
   ocrLanguage?: OcrLanguage;
+  detectedLanguage?: OcrLanguage | null;
   warnings?: string[];
 }
 
-const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage, ocrLanguage, warnings = [] }: ProcessingIndicatorProps) => {
+const ProcessingIndicator = ({ 
+  isProcessing, 
+  progress, 
+  error, 
+  statusMessage, 
+  ocrLanguage,
+  detectedLanguage,
+  warnings = [] 
+}: ProcessingIndicatorProps) => {
   if (!isProcessing && !error && warnings.length === 0) return null;
   
   // Generate appropriate status message based on progress
@@ -30,7 +39,15 @@ const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage, ocr
   const safeProgress = Math.min(Math.max(progress || 0, 0), 100);
   
   const detailedMessage = statusMessage || getDetailedStatus(safeProgress);
-  const languageDisplay = ocrLanguage === 'spa' ? 'Spanish' : 'English';
+  
+  // Display language settings
+  let languageDisplay = ocrLanguage === 'spa' ? 'Spanish' : (ocrLanguage === 'eng' ? 'English' : 'Auto-detect');
+  
+  // Add detected language if using auto mode and language was detected
+  if (ocrLanguage === 'auto' && detectedLanguage) {
+    const detected = detectedLanguage === 'spa' ? 'Spanish' : 'English';
+    languageDisplay = `Auto-detect (Detected: ${detected})`;
+  }
   
   return (
     <div className="space-y-2">
@@ -64,6 +81,7 @@ const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage, ocr
               </TooltipTrigger>
               <TooltipContent>
                 <p className="text-xs">OCR Language: {languageDisplay}</p>
+                <p className="text-xs">Using PaddleOCR engine</p>
                 <p className="text-xs">Complex documents and scanned PDFs may take longer to process</p>
               </TooltipContent>
             </Tooltip>

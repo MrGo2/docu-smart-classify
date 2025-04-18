@@ -15,12 +15,14 @@ export const useDocumentProcessing = (
 ) => {
   const [file, setFile] = useState<File | null>(null);
   const [modelSelection, setModelSelection] = useState<string>("openai");
-  const [ocrLanguage, setOcrLanguage] = useState<OcrLanguage>("spa"); // Default to Spanish
+  const [ocrLanguage, setOcrLanguage] = useState<OcrLanguage>("auto"); // Changed default to auto
+  const [ocrProvider, setOcrProvider] = useState<string>("paddleocr"); // Default to PaddleOCR
   const [extractionStrategy, setExtractionStrategy] = useState<ExtractionStrategy>(ExtractionStrategy.FIRST_PAGE);
   const [progress, setProgress] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [detectedLanguage, setDetectedLanguage] = useState<OcrLanguage | null>(null);
 
   const supportedTypes = [
     "application/pdf",
@@ -37,6 +39,7 @@ export const useDocumentProcessing = (
     setFile(selectedFile);
     setProgress(0);
     setStatusMessage("");
+    setDetectedLanguage(null);
   };
 
   const getApiKey = async (service: string) => {
@@ -82,20 +85,38 @@ export const useDocumentProcessing = (
       let classificationText = "";
       if (isContentExtractable) {
         if (needsOcr(fileToProcess)) {
-          setStatusMessage(`Performing OCR text extraction with ${ocrLanguage === 'spa' ? 'Spanish' : 'English'} language model...`);
-          extractedFullText = await performOcr(fileToProcess, (ocrProgress) => {
-            // Scale OCR progress from 5% to 75% of the overall process
-            const scaledProgress = 5 + Math.floor(ocrProgress * 0.7);
-            setProgress(scaledProgress);
+          const langDisplay = ocrLanguage === 'auto' ? 'Auto-detect' : (ocrLanguage === 'spa' ? 'Spanish' : 'English');
+          setStatusMessage(`Performing OCR text extraction with ${langDisplay} language setting...`);
+          
+          const ocrResult = await performOcr(
+            fileToProcess, 
+            (ocrProgress) => {
+              // Scale OCR progress from 5% to 75% of the overall process
+              const scaledProgress = 5 + Math.floor(ocrProgress * 0.7);
+              setProgress(scaledProgress);
+              
+              if (ocrProgress < 40) {
+                setStatusMessage(`Initializing OCR engine with ${langDisplay} setting...`);
+              } else if (ocrProgress < 70) {
+                setStatusMessage("Extracting text from document pages...");
+              } else {
+                setStatusMessage("Finalizing text extraction...");
+              }
+            }, 
+            ocrLanguage,
+            ocrProvider
+          );
+          
+          extractedFullText = ocrResult.text;
+          
+          // Store detected language if auto-detection was used
+          if (ocrLanguage === 'auto' && ocrResult.detectedLanguage) {
+            setDetectedLanguage(ocrResult.detectedLanguage);
             
-            if (ocrProgress < 40) {
-              setStatusMessage(`Initializing ${ocrLanguage === 'spa' ? 'Spanish' : 'English'} OCR engine...`);
-            } else if (ocrProgress < 70) {
-              setStatusMessage("Extracting text from document pages...");
-            } else {
-              setStatusMessage("Finalizing text extraction...");
-            }
-          }, ocrLanguage);
+            // Show detected language in status
+            const detectedLangDisplay = ocrResult.detectedLanguage === 'spa' ? 'Spanish' : 'English';
+            setStatusMessage(`Text extracted successfully. Detected language: ${detectedLangDisplay}`);
+          }
         } else if (fileToProcess.type.includes("word")) {
           setStatusMessage("Extracting text from Word document...");
           // For Word documents, we could implement text extraction here
@@ -167,14 +188,17 @@ export const useDocumentProcessing = (
     file,
     modelSelection,
     ocrLanguage,
+    ocrProvider,
     extractionStrategy,
     progress,
     isProcessing,
     statusMessage,
     supportedTypes,
     selectedProject,
+    detectedLanguage,
     setModelSelection,
     setOcrLanguage,
+    setOcrProvider,
     setExtractionStrategy,
     setSelectedProject,
     handleFileSelect,

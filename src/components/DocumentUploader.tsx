@@ -31,6 +31,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     statusMessage,
     supportedTypes,
     selectedProject,
+    detectedLanguage,
     setModelSelection,
     setOcrLanguage,
     setExtractionStrategy,
@@ -98,6 +99,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
         progress={progress}
         statusMessage={statusMessage}
         ocrLanguage={ocrLanguage}
+        detectedLanguage={detectedLanguage}
       />
     </div>
   );

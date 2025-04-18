@@ -1,7 +1,6 @@
 
 import { OcrLanguage } from "@/lib/ocr/types";
 import { OcrFactory } from "@/lib/ocr/OcrFactory";
-import { createWorker } from "tesseract.js";
 import * as pdfjs from "pdfjs-dist";
 
 // Configure PDF.js worker
@@ -28,24 +27,30 @@ export const getFileExtension = (fileName: string): string => {
 export const performOcr = async (
   file: File,
   onProgressUpdate: (progress: number) => void,
-  ocrLanguage: OcrLanguage = "spa"
-): Promise<string> => {
+  ocrLanguage: OcrLanguage = "auto",
+  ocrProviderName: string = "paddleocr"
+): Promise<{ text: string; detectedLanguage?: OcrLanguage }> => {
   try {
     // Update progress to indicate we're starting
     onProgressUpdate(5);
     
     let extractedText = "";
+    let detectedLanguage: OcrLanguage | undefined;
     
     if (file.type === "application/pdf") {
-      extractedText = await processPdf(file, onProgressUpdate, ocrLanguage);
+      const result = await processPdf(file, onProgressUpdate, ocrLanguage, ocrProviderName);
+      extractedText = result.text;
+      detectedLanguage = result.detectedLanguage;
     } else if (file.type.startsWith("image/")) {
-      extractedText = await processImage(file, onProgressUpdate, ocrLanguage);
+      const result = await processImage(file, onProgressUpdate, ocrLanguage, ocrProviderName);
+      extractedText = result.text;
+      detectedLanguage = result.detectedLanguage;
     } else {
       throw new Error("Unsupported file type for OCR");
     }
     
     onProgressUpdate(100);
-    return extractedText;
+    return { text: extractedText, detectedLanguage };
   } catch (error) {
     console.error("OCR processing error:", error);
     throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -58,8 +63,9 @@ export const performOcr = async (
 async function processPdf(
   file: File,
   onProgressUpdate: (progress: number) => void,
-  ocrLanguage: OcrLanguage
-): Promise<string> {
+  ocrLanguage: OcrLanguage,
+  ocrProviderName: string
+): Promise<{ text: string; detectedLanguage?: OcrLanguage }> {
   // Load the PDF document
   const arrayBuffer = await file.arrayBuffer();
   const pdfDocument = await pdfjs.getDocument({ data: arrayBuffer }).promise;
@@ -67,6 +73,7 @@ async function processPdf(
   
   let fullText = "";
   const textContents: string[] = [];
+  let detectedLanguage: OcrLanguage | undefined;
   
   // Process each page
   for (let i = 1; i <= numPages; i++) {
@@ -111,7 +118,7 @@ async function processPdf(
       const pageFile = new File([blob], `page-${i}.png`, { type: "image/png" });
       
       // Use OCR on the rendered page
-      const ocr = OcrFactory.getProvider("tesseract");
+      const ocr = OcrFactory.getProvider(ocrProviderName);
       const result = await ocr.extractText(
         pageFile,
         (p) => {
@@ -123,13 +130,18 @@ async function processPdf(
       );
       
       textContents.push(result.text);
+      
+      // Store detected language from first page (if auto-detection was used)
+      if (i === 1 && ocrLanguage === 'auto' && result.detectedLanguage) {
+        detectedLanguage = result.detectedLanguage;
+      }
     }
   }
   
   // Combine all page texts
   fullText = textContents.join("\n\n=== PAGE BREAK ===\n\n");
   
-  return fullText;
+  return { text: fullText, detectedLanguage };
 }
 
 /**
@@ -138,9 +150,10 @@ async function processPdf(
 async function processImage(
   file: File,
   onProgressUpdate: (progress: number) => void,
-  ocrLanguage: OcrLanguage
-): Promise<string> {
-  const ocr = OcrFactory.getProvider("tesseract");
+  ocrLanguage: OcrLanguage,
+  ocrProviderName: string
+): Promise<{ text: string; detectedLanguage?: OcrLanguage }> {
+  const ocr = OcrFactory.getProvider(ocrProviderName);
   const result = await ocr.extractText(
     file,
     (p) => {
@@ -151,5 +164,8 @@ async function processImage(
     ocrLanguage
   );
   
-  return result.text;
+  return { 
+    text: result.text,
+    detectedLanguage: ocrLanguage === 'auto' ? result.detectedLanguage : undefined
+  };
 }

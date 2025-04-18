@@ -43,12 +43,13 @@ export class LanguageConfigurationManager {
   private constructor() {
     // Initialize with default configurations
     this.configurations.set("default", {
-      ocrLanguage: "spa",
+      ocrLanguage: "auto",  // Changed default to automatic detection
       classificationLanguage: "spanish",
       extractionLanguage: "spanish",
       displayNames: {
         "spa": "Spanish",
-        "eng": "English"
+        "eng": "English",
+        "auto": "Auto-detect"
       }
     });
     
@@ -58,7 +59,8 @@ export class LanguageConfigurationManager {
       extractionLanguage: "english",
       displayNames: {
         "spa": "Spanish",
-        "eng": "English"
+        "eng": "English",
+        "auto": "Auto-detect"
       }
     });
   }

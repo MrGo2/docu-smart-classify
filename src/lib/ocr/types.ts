@@ -1,10 +1,11 @@
 
-export type OcrLanguage = 'spa' | 'eng';
+export type OcrLanguage = 'spa' | 'eng' | 'auto';
 
 export interface OcrResult {
   text: string;
   confidence?: number;
   language?: string;
+  detectedLanguage?: OcrLanguage; // Added field for auto-detected language
 }
 
 export interface OcrProvider {
@@ -17,9 +18,13 @@ export interface OcrProvider {
     language?: OcrLanguage,
     options?: OcrOptions
   ): Promise<OcrResult>;
+  
+  // Optional method for cleanup
+  dispose?: () => Promise<void>;
 }
 
 export interface OcrOptions {
   format?: 'text' | 'json' | 'markdown';
   customPrompt?: string;
+  paddleOptions?: Record<string, any>; // Additional options specific to PaddleOCR
 }

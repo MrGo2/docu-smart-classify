@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ApiKeyManager from "@/components/ApiKeyManager";
 import AiModelSettings from "@/components/settings/AiModelSettings";
+import OcrSettings from "@/components/settings/OcrSettings";
 
 const Settings = () => {
   return (
@@ -36,19 +37,7 @@ const Settings = () => {
         </TabsContent>
         
         <TabsContent value="ocr">
-          <Card>
-            <CardHeader>
-              <CardTitle>OCR Settings</CardTitle>
-              <CardDescription>
-                Configure OCR processing options
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                OCR settings will be implemented here.
-              </p>
-            </CardContent>
-          </Card>
+          <OcrSettings />
         </TabsContent>
         
         <TabsContent value="general">
