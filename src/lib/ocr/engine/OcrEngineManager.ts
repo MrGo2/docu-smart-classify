@@ -12,6 +12,8 @@ export class OcrEngineManager {
         this.modelLoading = true;
         
         if (!this.ocrInstance) {
+          // Create a new instance of the OCR engine using the correct API
+          // The paddleOcr library exports a class named OCREngine
           this.ocrInstance = new paddleOcr.OCREngine({
             detPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/assets/ppocr_det/',
             recPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/assets/ppocr_rec/',
