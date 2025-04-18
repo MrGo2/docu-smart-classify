@@ -27,25 +27,29 @@ const BatchProgressDisplay: React.FC<BatchProgressDisplayProps> = ({
 }) => {
   if (!isProcessing && failedFiles.length === 0) return null;
 
+  // Ensure progress values are clamped between 0-100
+  const safeOverallProgress = Math.min(Math.max(overallProgress || 0, 0), 100);
+  const safeFileProgress = Math.min(Math.max(fileProgress || 0, 0), 100);
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
           <span>Overall Progress</span>
-          <span>{overallProgress}%</span>
+          <span>{safeOverallProgress}%</span>
         </div>
-        <Progress value={overallProgress} className="h-2" />
+        <Progress value={safeOverallProgress} className="h-2" />
       </div>
 
       {isProcessing && (
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span>Current File: {currentFileName}</span>
-            <span>{fileProgress}%</span>
+            <span>{safeFileProgress}%</span>
           </div>
           <ProcessingIndicator
             isProcessing={isProcessing}
-            progress={fileProgress}
+            progress={safeFileProgress}
             statusMessage={statusMessage}
             ocrLanguage={ocrLanguage}
             error={processingError}

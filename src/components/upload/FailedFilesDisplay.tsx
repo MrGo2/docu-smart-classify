@@ -12,7 +12,7 @@ const FailedFilesDisplay: React.FC<FailedFilesDisplayProps> = ({ failedFiles }) 
 
   return (
     <div className="mt-4">
-      <Alert variant="warning" className="bg-amber-50 border-amber-200 text-amber-800">
+      <Alert className="bg-amber-50 border-amber-200 text-amber-800">
         <AlertCircle className="h-4 w-4 mr-2 text-amber-500" />
         <AlertDescription>
           {`${failedFiles.length} file${failedFiles.length > 1 ? "s" : ""} failed processing`}

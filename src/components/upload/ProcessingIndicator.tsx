@@ -26,12 +26,15 @@ const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage, ocr
     return "Finalizing...";
   };
   
-  const detailedMessage = statusMessage || getDetailedStatus(progress);
+  // Ensure progress is clamped between 0-100
+  const safeProgress = Math.min(Math.max(progress || 0, 0), 100);
+  
+  const detailedMessage = statusMessage || getDetailedStatus(safeProgress);
   const languageDisplay = ocrLanguage === 'spa' ? 'Spanish' : 'English';
   
   return (
     <div className="space-y-2">
-      {isProcessing && <Progress value={progress} className="h-2" />}
+      {isProcessing && <Progress value={safeProgress} className="h-2" />}
       
       {error && (
         <Alert variant="destructive" className="mt-2">
@@ -41,7 +44,7 @@ const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage, ocr
       )}
       
       {warnings.length > 0 && (
-        <Alert variant="default" className="mt-2 bg-amber-50 border-amber-200 text-amber-800">
+        <Alert className="mt-2 bg-amber-50 border-amber-200 text-amber-800">
           <FileWarning className="h-4 w-4 mr-2 text-amber-500" />
           <AlertDescription>
             {warnings.length === 1 
@@ -53,7 +56,7 @@ const ProcessingIndicator = ({ isProcessing, progress, error, statusMessage, ocr
       
       {isProcessing && (
         <div className="flex items-center justify-center text-xs text-gray-500">
-          <p>{detailedMessage} ({progress}%)</p>
+          <p>{detailedMessage} ({safeProgress}%)</p>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

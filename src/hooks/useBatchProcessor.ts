@@ -43,11 +43,14 @@ export const useBatchProcessor = ({
   // Calculate overall progress based on current file index and current file progress
   const calculateOverallProgress = useCallback(() => {
     if (files.length === 0) return 0;
-
-    const fileContribution = 100 / files.length;
-    return Math.floor(
-      currentFileIndex * fileContribution + (fileProgress * fileContribution) / 100
-    );
+    
+    // Ensure we don't exceed 100% for the entire batch
+    const fileWeight = 100 / files.length;
+    const completedFilesProgress = currentFileIndex * fileWeight;
+    const currentFileContribution = (fileProgress * fileWeight) / 100;
+    
+    // Clamp the overall progress between 0 and 100
+    return Math.min(Math.max(Math.floor(completedFilesProgress + currentFileContribution), 0), 100);
   }, [currentFileIndex, fileProgress, files.length]);
 
   // Update overall progress whenever file progress or current index changes
@@ -81,7 +84,7 @@ export const useBatchProcessor = ({
         setIsProcessing(false);
         setProcessingError(null);
 
-        // Complete the progress indicator
+        // Complete the progress indicator but ensure it doesn't exceed 100%
         setOverallProgress(100);
         return "complete";
       }
