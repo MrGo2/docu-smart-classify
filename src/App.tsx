@@ -12,6 +12,7 @@ import BatchUpload from "./pages/BatchUpload";
 import Extraction from "./pages/Extraction";
 import Settings from "./pages/Settings";
 import ProjectsManagement from "./pages/ProjectsManagement";
+import PromptManagement from "./pages/PromptManagement";
 import NotFound from "./pages/NotFound";
 
 // Create a client
