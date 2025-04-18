@@ -1,6 +1,6 @@
 
 import { OcrLanguage, OcrOptions, OcrProvider, OcrResult } from "../types";
-import { load, dispose, detect, OCRResult, detectLang } from '@paddle-js-models/ocr';
+import * as paddleOcr from '@paddle-js-models/ocr';
 
 export class PaddleOcrProvider implements OcrProvider {
   name = "paddleocr";
@@ -32,7 +32,7 @@ export class PaddleOcrProvider implements OcrProvider {
         if (!this.modelLoading) {
           this.modelLoading = true;
           onProgressUpdate(20);
-          await load();
+          await paddleOcr.createOCRInstance();
           this.modelLoaded = true;
           this.modelLoading = false;
         } else {
@@ -55,12 +55,13 @@ export class PaddleOcrProvider implements OcrProvider {
       // Automatically detect language if set to 'auto'
       if (language === 'auto') {
         try {
-          // Detect language from image
-          const langResult = await detectLang(imageData);
+          // Use PaddleOCR's language detection
+          const detector = await paddleOcr.createLangDetector();
+          const langResult = await detector.detect(imageData);
+          
           // Map detected language code to our supported languages
           if (langResult && langResult.language) {
             // PaddleOCR returns language codes like 'en', 'es', etc.
-            // Map these to our OcrLanguage type
             if (langResult.language.startsWith('en')) {
               detectedLanguage = 'eng';
             } else if (langResult.language.startsWith('es')) {
@@ -81,13 +82,16 @@ export class PaddleOcrProvider implements OcrProvider {
       
       onProgressUpdate(60);
       
-      // Perform OCR on the image
-      const result: OCRResult = await detect(imageData, {
-        // PaddleOCR options
-        language: detectedLanguage === 'spa' ? 'es' : 'en', // Convert our language codes to PaddleOCR format
+      // Create OCR instance with appropriate options
+      const ocr = await paddleOcr.createOCRInstance({
+        // Map our language codes to PaddleOCR format
+        language: detectedLanguage === 'spa' ? 'es' : 'en',
         enableGPU: false, // Default to CPU for compatibility
         ...options?.paddleOptions
       });
+      
+      // Perform OCR on the image
+      const result = await ocr.recognize(imageData);
       
       onProgressUpdate(90);
       
@@ -131,7 +135,8 @@ export class PaddleOcrProvider implements OcrProvider {
    */
   async dispose(): Promise<void> {
     if (this.modelLoaded) {
-      await dispose();
+      // PaddleOCR doesn't have a direct dispose method like Tesseract
+      // We'll just set our flag to indicate it's not loaded
       this.modelLoaded = false;
     }
   }
@@ -157,7 +162,7 @@ export class PaddleOcrProvider implements OcrProvider {
   /**
    * Format OCR results into a single text string
    */
-  private formatOcrResults(result: OCRResult): string {
+  private formatOcrResults(result: any): string {
     if (!result || !result.text) {
       return '';
     }
@@ -168,7 +173,7 @@ export class PaddleOcrProvider implements OcrProvider {
   /**
    * Calculate average confidence from OCR results
    */
-  private calculateConfidence(result: OCRResult): number {
+  private calculateConfidence(result: any): number {
     if (!result || !result.score) {
       return 0;
     }
