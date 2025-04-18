@@ -7,6 +7,7 @@ export class PaddleOcrProvider implements OcrProvider {
   supportedLanguages: OcrLanguage[] = ["eng", "spa", "auto"];
   private modelLoaded = false;
   private modelLoading = false;
+  private ocrInstance: any = null;
   
   /**
    * Extract text from an image file using PaddleOCR
@@ -32,7 +33,17 @@ export class PaddleOcrProvider implements OcrProvider {
         if (!this.modelLoading) {
           this.modelLoading = true;
           onProgressUpdate(20);
-          await paddleOcr.createOCRInstance();
+          
+          // Initialize PaddleOCR
+          if (!this.ocrInstance) {
+            // Using the correct API based on paddleOcr's available methods
+            this.ocrInstance = await paddleOcr.load({
+              wasmPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/',
+              detPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/assets/ppocr_det/',
+              recPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/assets/ppocr_rec/',
+            });
+          }
+          
           this.modelLoaded = true;
           this.modelLoading = false;
         } else {
@@ -55,19 +66,29 @@ export class PaddleOcrProvider implements OcrProvider {
       // Automatically detect language if set to 'auto'
       if (language === 'auto') {
         try {
-          // Use PaddleOCR's language detection
-          const detector = await paddleOcr.createLangDetector();
-          const langResult = await detector.detect(imageData);
+          // Since language detection might not be directly available in the API
+          // We'll make a best effort based on the first few words of the OCR result
+          const initialRecognition = await this.ocrInstance.recognize(imageData);
           
-          // Map detected language code to our supported languages
-          if (langResult && langResult.language) {
-            // PaddleOCR returns language codes like 'en', 'es', etc.
-            if (langResult.language.startsWith('en')) {
-              detectedLanguage = 'eng';
-            } else if (langResult.language.startsWith('es')) {
+          // Simple language detection based on common Spanish words
+          if (initialRecognition && initialRecognition.text) {
+            const text = initialRecognition.text.toLowerCase();
+            const spanishIndicators = ['el', 'la', 'los', 'las', 'y', 'de', 'en', 'con', 'por', 'para'];
+            const englishIndicators = ['the', 'a', 'of', 'in', 'to', 'and', 'for', 'with', 'by'];
+            
+            let spanishCount = 0;
+            let englishCount = 0;
+            
+            const words = text.split(/\s+/);
+            for (const word of words) {
+              if (spanishIndicators.includes(word)) spanishCount++;
+              if (englishIndicators.includes(word)) englishCount++;
+            }
+            
+            // Determine language based on word frequency
+            if (spanishCount > englishCount) {
               detectedLanguage = 'spa';
             } else {
-              // Default to English if language is not supported
               detectedLanguage = 'eng';
             }
           } else {
@@ -82,16 +103,15 @@ export class PaddleOcrProvider implements OcrProvider {
       
       onProgressUpdate(60);
       
-      // Create OCR instance with appropriate options
-      const ocr = await paddleOcr.createOCRInstance({
-        // Map our language codes to PaddleOCR format
+      // Prepare recognition options
+      const recognitionOptions = {
         language: detectedLanguage === 'spa' ? 'es' : 'en',
         enableGPU: false, // Default to CPU for compatibility
         ...options?.paddleOptions
-      });
+      };
       
-      // Perform OCR on the image
-      const result = await ocr.recognize(imageData);
+      // Perform OCR on the image with the configured options
+      const result = await this.ocrInstance.recognize(imageData, recognitionOptions);
       
       onProgressUpdate(90);
       
@@ -134,9 +154,9 @@ export class PaddleOcrProvider implements OcrProvider {
    * Clean up resources when provider is no longer needed
    */
   async dispose(): Promise<void> {
-    if (this.modelLoaded) {
-      // PaddleOCR doesn't have a direct dispose method like Tesseract
-      // We'll just set our flag to indicate it's not loaded
+    if (this.modelLoaded && this.ocrInstance) {
+      // Clean up any resources if needed
+      this.ocrInstance = null;
       this.modelLoaded = false;
     }
   }
