@@ -4,8 +4,9 @@ import { OcrFactory } from "@/lib/ocr/OcrFactory";
 import { createWorker } from "tesseract.js";
 import * as pdfjs from "pdfjs-dist";
 
-// Load the PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Configure PDF.js worker
+const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.entry");
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 /**
  * Determines if a file needs OCR processing

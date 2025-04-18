@@ -1,7 +1,7 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Loader, CheckCircle2, Ban } from "lucide-react";
+import { Loader2, CheckCircle2, Ban } from "lucide-react";
 
 interface BatchProcessingControlsProps {
   isProcessing: boolean;
@@ -34,7 +34,7 @@ const BatchProcessingControls: React.FC<BatchProcessingControlsProps> = ({
   return (
     <>
       <Button className="flex-1" disabled variant="outline">
-        <Loader className="mr-2 h-4 w-4 animate-spin" /> Processing
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing
       </Button>
       <Button variant="destructive" onClick={onCancelProcessing}>
         <Ban className="mr-1" />
