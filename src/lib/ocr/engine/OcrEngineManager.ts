@@ -13,10 +13,9 @@ export class OcrEngineManager {
         
         if (!this.ocrInstance) {
           // Initialize the OCR engine using the correct API
-          // Check the API documentation to ensure we're correctly passing parameters
-          await paddleOcr.init({
-            wasmPath: 'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/',
-          });
+          await paddleOcr.init(
+            'https://cdn.jsdelivr.net/npm/@paddle-js-models/ocr/dist/paddle-ocr-wasm/'
+          );
           
           // Store the initialized module for later use
           this.ocrInstance = paddleOcr;
