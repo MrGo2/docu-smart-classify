@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import {
   Database,
   FolderPlus,
   Briefcase,
+  MessageSquare,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,6 +25,7 @@ const SidebarLayout = () => {
     { path: "/batch-upload", label: "Batch Upload", icon: FolderPlus },
     { path: "/extraction", label: "Data Extraction", icon: Database },
     { path: "/projects", label: "Projects", icon: Briefcase },
+    { path: "/prompts", label: "Prompts", icon: MessageSquare },
     { path: "/settings", label: "Settings", icon: Settings },
   ];
 

@@ -31,6 +31,7 @@ const App = () => (
               <Route path="batch-upload" element={<BatchUpload />} />
               <Route path="extraction" element={<Extraction />} />
               <Route path="projects" element={<ProjectsManagement />} />
+              <Route path="prompts" element={<PromptManagement />} />
               <Route path="settings" element={<Settings />} />
             </Route>
             <Route path="*" element={<NotFound />} />
