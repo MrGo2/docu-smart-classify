@@ -4,8 +4,10 @@ import { OcrFactory } from "@/lib/ocr/OcrFactory";
 import { getDocument, GlobalWorkerOptions, PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 
 // Configure PDF.js worker
-const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.entry");
-GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
+GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url
+).toString();
 
 // Memory-efficient canvas pool for PDF rendering
 const canvasPool: HTMLCanvasElement[] = [];

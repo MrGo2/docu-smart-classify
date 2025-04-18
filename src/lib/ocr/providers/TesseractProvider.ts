@@ -46,6 +46,21 @@ export class TesseractProvider implements OcrProvider {
       throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  
+  // Add the missing methods required by OcrProvider interface
+  supportsFileType(fileType: string): boolean {
+    return fileType.startsWith('image/');
+  }
+  
+  getSupportedFileTypes(): string[] {
+    return ['image/jpeg', 'image/png', 'image/tiff', 'image/bmp', 'image/gif'];
+  }
+  
+  async dispose(): Promise<void> {
+    // No specific cleanup needed for Tesseract provider
+    // but we implement the method to satisfy the interface
+    return Promise.resolve();
+  }
 
   private async fileToImage(file: File): Promise<string> {
     return new Promise((resolve, reject) => {

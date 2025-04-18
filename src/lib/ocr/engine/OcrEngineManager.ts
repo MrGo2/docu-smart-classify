@@ -59,7 +59,7 @@ export class OcrEngineManager {
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
           }
 
-          // Fix: Pass MODEL_CDN_URL as a string instead of an object
+          // Pass MODEL_CDN_URL as a string
           await paddleOcr.init(MODEL_CDN_URL);
           console.log("PaddleOCR engine initialized successfully");
 
