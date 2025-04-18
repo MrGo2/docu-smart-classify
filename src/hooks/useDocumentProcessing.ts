@@ -1,11 +1,11 @@
 
-import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useFileState } from "./document-processing/useFileState";
+import { useProcessingState } from "./document-processing/useProcessingState";
+import { useApiKey } from "./document-processing/useApiKey";
+import { useFileValidation } from "./document-processing/useFileValidation";
 import { performOcr, needsOcr } from "@/utils/ocrProcessor";
 import { classifyDocument } from "@/services/aiClassifier";
 import { uploadDocumentToStorage } from "@/services/documentStorage";
-import { OcrLanguage } from "@/lib/ocr/types";
-import { ExtractionStrategy } from "@/lib/extraction/types";
 import { TextExtractionService } from "@/lib/extraction/textExtractionService";
 
 export const useDocumentProcessing = (
@@ -13,195 +13,110 @@ export const useDocumentProcessing = (
   onProcessingComplete: () => void,
   onProcessingError: (error: string) => void
 ) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [modelSelection, setModelSelection] = useState<string>("openai");
-  const [ocrLanguage, setOcrLanguage] = useState<OcrLanguage>("auto"); // Changed default to auto
-  const [ocrProvider, setOcrProvider] = useState<string>("paddleocr"); // Default to PaddleOCR
-  const [extractionStrategy, setExtractionStrategy] = useState<ExtractionStrategy>(ExtractionStrategy.FIRST_PAGE);
-  const [progress, setProgress] = useState<number>(0);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [statusMessage, setStatusMessage] = useState<string>("");
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const [detectedLanguage, setDetectedLanguage] = useState<OcrLanguage | null>(null);
-
-  const supportedTypes = [
-    "application/pdf",
-    "image/jpeg",
-    "image/png",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ];
-  
-  const canExtractContent = (fileType: string): boolean => {
-    return supportedTypes.includes(fileType);
-  };
-
-  const handleFileSelect = (selectedFile: File) => {
-    setFile(selectedFile);
-    setProgress(0);
-    setStatusMessage("");
-    setDetectedLanguage(null);
-  };
-
-  const getApiKey = async (service: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("api_keys")
-        .select("api_key")
-        .eq("service", service)
-        .eq("is_default", true)
-        .single();
-
-      if (error) throw error;
-      return data?.api_key;
-    } catch (error) {
-      console.error("Error fetching API key:", error);
-      return null;
-    }
-  };
+  const fileState = useFileState();
+  const processingState = useProcessingState();
+  const { getApiKey } = useApiKey();
+  const { supportedTypes, canExtractContent } = useFileValidation();
 
   const processDocument = async (documentFile?: File) => {
-    const fileToProcess = documentFile || file;
+    const fileToProcess = documentFile || fileState.file;
     if (!fileToProcess) return;
 
-    setIsProcessing(true);
+    processingState.setIsProcessing(true);
     onProcessingStart();
-    setProgress(0);
+    processingState.setProgress(0);
 
     try {
-      // 1. Get the selected model's API key
-      setStatusMessage("Getting API key...");
-      const apiKey = await getApiKey(modelSelection);
+      processingState.setStatusMessage("Getting API key...");
+      const apiKey = await getApiKey(fileState.modelSelection);
       if (!apiKey) {
-        throw new Error(`No API key configured for ${modelSelection}. Please add one first.`);
+        throw new Error(`No API key configured for ${fileState.modelSelection}. Please add one first.`);
       }
 
-      setProgress(5);
-
-      // Check if file type is supported for content extraction
+      processingState.setProgress(5);
       const isContentExtractable = canExtractContent(fileToProcess.type);
-
-      // 2. Extract text if needed using OCR (only for supported file types)
       let extractedFullText = "";
       let classificationText = "";
+
       if (isContentExtractable) {
         if (needsOcr(fileToProcess)) {
-          const langDisplay = ocrLanguage === 'auto' ? 'Auto-detect' : (ocrLanguage === 'spa' ? 'Spanish' : 'English');
-          setStatusMessage(`Performing OCR text extraction with ${langDisplay} language setting...`);
-          
-          const ocrResult = await performOcr(
-            fileToProcess, 
-            (ocrProgress) => {
-              // Scale OCR progress from 5% to 75% of the overall process
-              const scaledProgress = 5 + Math.floor(ocrProgress * 0.7);
-              setProgress(scaledProgress);
-              
-              if (ocrProgress < 40) {
-                setStatusMessage(`Initializing OCR engine with ${langDisplay} setting...`);
-              } else if (ocrProgress < 70) {
-                setStatusMessage("Extracting text from document pages...");
-              } else {
-                setStatusMessage("Finalizing text extraction...");
-              }
-            }, 
-            ocrLanguage,
-            ocrProvider
+          const result = await performOcr(
+            fileToProcess,
+            (progress) => {
+              const scaledProgress = 5 + Math.floor(progress * 0.7);
+              processingState.setProgress(scaledProgress);
+              processingState.setStatusMessage(
+                progress < 40 ? "Initializing OCR engine..." :
+                progress < 70 ? "Extracting text from document pages..." :
+                "Finalizing text extraction..."
+              );
+            },
+            fileState.ocrLanguage,
+            fileState.ocrProvider
           );
-          
-          extractedFullText = ocrResult.text;
-          
-          // Store detected language if auto-detection was used
-          if (ocrLanguage === 'auto' && ocrResult.detectedLanguage) {
-            setDetectedLanguage(ocrResult.detectedLanguage);
-            
-            // Show detected language in status
-            const detectedLangDisplay = ocrResult.detectedLanguage === 'spa' ? 'Spanish' : 'English';
-            setStatusMessage(`Text extracted successfully. Detected language: ${detectedLangDisplay}`);
+
+          extractedFullText = result.text;
+          if (fileState.ocrLanguage === 'auto' && result.detectedLanguage) {
+            fileState.setDetectedLanguage(result.detectedLanguage);
           }
-        } else if (fileToProcess.type.includes("word")) {
-          setStatusMessage("Extracting text from Word document...");
-          // For Word documents, we could implement text extraction here
-          // For now we'll just set a placeholder
-          extractedFullText = "Text extraction from Word documents not implemented";
-          setProgress(75);
         }
 
-        // Apply extraction strategy to the full text for classification
-        setStatusMessage(`Applying ${extractionStrategy} extraction strategy...`);
+        processingState.setStatusMessage(`Applying ${fileState.extractionStrategy} extraction strategy...`);
         const extractionResult = TextExtractionService.extractTextForClassification(
-          extractedFullText, 
-          ["=== PAGE BREAK ==="], 
+          extractedFullText,
+          ["=== PAGE BREAK ==="],
           {
-            strategy: extractionStrategy,
-            maxClassificationLength: 2000 // Limit text for classification to 2000 chars
+            strategy: fileState.extractionStrategy,
+            maxClassificationLength: 2000
           }
         );
         classificationText = extractionResult.classificationText;
-      } else {
-        // For unsupported file types, we'll just use metadata
-        setStatusMessage("Unsupported file type for content extraction, using metadata only...");
-        setProgress(75);
       }
 
-      // 3. Classify the document using AI based on extracted text and metadata
-      setStatusMessage("Classifying document with AI...");
+      processingState.setStatusMessage("Classifying document with AI...");
       const classification = await classifyDocument(
         classificationText,
         apiKey,
-        modelSelection,
+        fileState.modelSelection,
         (classifyProgress) => {
-          // Scale classification progress from 75% to 90% of the overall process
           const scaledProgress = 75 + Math.floor(classifyProgress * 0.15);
-          setProgress(scaledProgress);
+          processingState.setProgress(scaledProgress);
         },
         fileToProcess
       );
 
-      // 4. Upload document and save metadata
-      setStatusMessage("Saving document to storage...");
+      processingState.setStatusMessage("Saving document to storage...");
       await uploadDocumentToStorage(
         fileToProcess,
         classification,
         extractedFullText,
         classificationText,
-        extractionStrategy,
+        fileState.extractionStrategy,
         needsOcr(fileToProcess) && isContentExtractable,
         (uploadProgress) => {
-          // Scale upload progress from 90% to 100% of the overall process
           const scaledProgress = 90 + Math.floor(uploadProgress * 0.1);
-          setProgress(scaledProgress);
+          processingState.setProgress(scaledProgress);
         },
-        selectedProject
+        fileState.selectedProject
       );
 
-      setStatusMessage("Processing complete!");
-      setFile(null);
-      setIsProcessing(false);
+      processingState.setStatusMessage("Processing complete!");
+      fileState.setFile(null);
+      processingState.setIsProcessing(false);
       onProcessingComplete();
     } catch (error: any) {
       console.error("Processing error:", error);
-      setIsProcessing(false);
+      processingState.setIsProcessing(false);
       onProcessingError(error.message || "An unknown error occurred");
     }
   };
 
   return {
-    file,
-    modelSelection,
-    ocrLanguage,
-    ocrProvider,
-    extractionStrategy,
-    progress,
-    isProcessing,
-    statusMessage,
+    ...fileState,
+    progress: processingState.progress,
+    isProcessing: processingState.isProcessing,
+    statusMessage: processingState.statusMessage,
     supportedTypes,
-    selectedProject,
-    detectedLanguage,
-    setModelSelection,
-    setOcrLanguage,
-    setOcrProvider,
-    setExtractionStrategy,
-    setSelectedProject,
-    handleFileSelect,
-    processDocument
+    processDocument,
   };
 };
