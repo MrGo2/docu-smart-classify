@@ -1,4 +1,3 @@
-
 import { OcrLanguage } from "@/lib/ocr/types";
 import { OcrFactory } from "@/lib/ocr/OcrFactory";
 import * as pdfjs from "pdfjs-dist";
@@ -29,7 +28,7 @@ export const performOcr = async (
   onProgressUpdate: (progress: number) => void,
   ocrLanguage: OcrLanguage = "auto",
   ocrProviderName: string = "paddleocr"
-): Promise<{ text: string; detectedLanguage?: OcrLanguage }> {
+) => {
   try {
     // Update progress to indicate we're starting
     onProgressUpdate(5);
