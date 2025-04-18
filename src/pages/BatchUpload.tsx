@@ -23,7 +23,7 @@ const BatchUpload = () => {
     modelSelection,
     ocrLanguage,
     extractionStrategy,
-    fileProgress,
+    progress, // Using 'progress' instead of 'fileProgress'
     statusMessage,
     supportedTypes,
     selectedProject,
@@ -59,7 +59,7 @@ const BatchUpload = () => {
     onFileError,
   } = useBatchProcessor({
     processDocument,
-    fileProgress,
+    fileProgress: progress, // Use 'progress' instead of 'fileProgress'
     statusMessage,
     ocrLanguage,
   });
@@ -105,6 +105,7 @@ const BatchUpload = () => {
             files={files}
             onFilesSelect={handleFilesSelect}
             onRemoveFile={handleRemoveFile}
+            onError={(error) => toast.error(error)} // Add the missing onError prop
             isDisabled={isProcessing}
           />
           
@@ -142,7 +143,7 @@ const BatchUpload = () => {
             isProcessing={isProcessing}
             overallProgress={overallProgress}
             currentFileName={currentFileName}
-            fileProgress={fileProgress}
+            fileProgress={progress} // Use 'progress' instead of 'fileProgress'
             statusMessage={statusMessage}
             ocrLanguage={ocrLanguage}
             processingError={processingError}
