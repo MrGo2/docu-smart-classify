@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -33,8 +32,8 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
   const [documentsToDelete, setDocumentsToDelete] = useState<string[]>([]);
   const [multiDeleteDialogOpen, setMultiDeleteDialogOpen] = useState(false);
+  const [doubleConfirmOpen, setDoubleConfirmOpen] = useState(false);
 
-  // Reset to first page when refreshTrigger changes
   useEffect(() => {
     setCurrentPage(1);
   }, [refreshTrigger]);
@@ -69,13 +68,17 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
     setMultiDeleteDialogOpen(true);
   };
 
+  const handleFirstConfirm = () => {
+    setMultiDeleteDialogOpen(false);
+    setDoubleConfirmOpen(true);
+  };
+
   const handleMultiDeleteConfirm = async () => {
     if (!documentsToDelete.length) return;
     
     let successCount = 0;
     let failCount = 0;
     
-    // Find the documents to delete
     const docsToDelete = documents.filter(doc => documentsToDelete.includes(doc.id));
     
     for (const doc of docsToDelete) {
@@ -87,6 +90,7 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
       }
     }
     
+    setDoubleConfirmOpen(false);
     setMultiDeleteDialogOpen(false);
     setDocumentsToDelete([]);
     
@@ -98,7 +102,7 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
       toast.error(`Failed to delete ${failCount} document${failCount !== 1 ? 's' : ''}`);
     }
   };
-  
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -120,7 +124,6 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
     );
   }
   
-  // If we're on a page with no documents (e.g., after deletion), go back to page 1
   if (documents.length === 0 && currentPage !== 1) {
     setCurrentPage(1);
     return null;
@@ -139,7 +142,6 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
         totalCount={totalCount}
       />
 
-      {/* Document viewer dialog */}
       <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
         <DialogContent className="max-w-4xl h-[80vh] p-0">
           {selectedDocument && (
@@ -148,7 +150,6 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation dialog */}
       <DeleteConfirmDialog
         document={documentToDelete}
         isOpen={deleteDialogOpen}
@@ -157,18 +158,42 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
         onConfirm={handleDeleteConfirm}
       />
 
-      {/* Multi-delete confirmation dialog */}
       <Dialog open={multiDeleteDialogOpen} onOpenChange={setMultiDeleteDialogOpen}>
         <DialogContent>
           <div className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Confirm Multiple Deletion</h2>
+            <h2 className="text-xl font-semibold mb-4">Delete Multiple Documents</h2>
             <p className="mb-6">
-              Are you sure you want to delete {documentsToDelete.length} selected document{documentsToDelete.length !== 1 ? 's' : ''}? This action cannot be undone.
+              You are about to delete {documentsToDelete.length} document{documentsToDelete.length !== 1 ? 's' : ''}. Would you like to proceed?
             </p>
             <div className="flex justify-end space-x-2">
               <Button
                 variant="outline"
                 onClick={() => setMultiDeleteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleFirstConfirm}
+              >
+                Proceed
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={doubleConfirmOpen} onOpenChange={setDoubleConfirmOpen}>
+        <DialogContent>
+          <div className="p-6">
+            <h2 className="text-xl font-semibold mb-4">Final Confirmation</h2>
+            <p className="mb-6 text-red-600">
+              Are you absolutely sure? This action CANNOT be undone. {documentsToDelete.length} document{documentsToDelete.length !== 1 ? 's' : ''} will be permanently deleted.
+            </p>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setDoubleConfirmOpen(false)}
               >
                 Cancel
               </Button>

@@ -5,7 +5,7 @@ import DocumentRow from "./DocumentRow";
 import DocumentsPagination from "./DocumentsPagination";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, CheckSquare, Square } from "lucide-react";
+import { Trash2, Circle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 
 interface DocumentsTableProps {
