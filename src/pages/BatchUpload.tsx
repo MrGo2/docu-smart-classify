@@ -1,186 +1,167 @@
 
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState, useCallback } from "react";
-import { toast } from "sonner";
-import { useDocumentProcessing } from "@/hooks/useDocumentProcessing";
-import { useBatchProcessor } from "@/hooks/useBatchProcessor";
+import { Button } from "@/components/ui/button";
 import MultiFileUploadArea from "@/components/upload/MultiFileUploadArea";
+import { useDocumentProcessing } from "@/hooks/useDocumentProcessing";
+import { toast } from "sonner";
+import ProjectSelector from "@/components/projects/ProjectSelector";
 import ModelSelector from "@/components/upload/ModelSelector";
 import LanguageSelector from "@/components/upload/LanguageSelector";
-import ProjectSelector from "@/components/projects/ProjectSelector";
 import ExtractionStrategySelector from "@/components/upload/ExtractionStrategySelector";
-import { Badge } from "@/components/ui/badge";
-import { ExtractionStrategy } from "@/lib/extraction/types";
+import { useBatchProcessor } from "@/hooks/useBatchProcessor";
 import BatchProcessingControls from "@/components/upload/BatchProcessingControls";
 import BatchProgressDisplay from "@/components/upload/BatchProgressDisplay";
 import FailedFilesDisplay from "@/components/upload/FailedFilesDisplay";
-
-// Constants
-const MAX_BATCH_FILES = 20;
+import { useNavigate } from "react-router-dom";
 
 const BatchUpload = () => {
-  // Set up document processing hook
+  const navigate = useNavigate();
+  const [isProcessing, setIsProcessing] = useState(false);
+  
   const {
     modelSelection,
     ocrLanguage,
-    progress: fileProgress,
+    extractionStrategy,
+    fileProgress,
     statusMessage,
     supportedTypes,
     selectedProject,
     setModelSelection,
     setOcrLanguage,
-    setSelectedProject,
     setExtractionStrategy,
+    setSelectedProject,
     processDocument,
   } = useDocumentProcessing(
-    () => {}, // onProcessingStart
+    // On processing start
+    () => {},
+    // On processing complete
     () => {
-      // When current file completes successfully
-      const result = batchProcessor.onFileProcessed();
-      if (result === "complete") {
-        if (batchProcessor.failedFiles.length === 0) {
-          toast.success(`Successfully processed all ${batchProcessor.files.length} documents`);
-        } else {
-          toast.success(
-            `Completed processing ${batchProcessor.files.length} documents. ` +
-            `${batchProcessor.files.length - batchProcessor.failedFiles.length} succeeded, ` +
-            `${batchProcessor.failedFiles.length} failed.`
-          );
-        }
-      } else if (result === "cancelled") {
-        toast.info("Batch processing cancelled");
-      }
+      // Navigate to the documents page when batch is complete
+      toast.success("All documents processed successfully!");
+      navigate("/documents");
     },
-    (error) => {
-      // When current file encounters an error
-      const result = batchProcessor.onFileError(error);
-      if (result === "complete") {
-        toast.success(
-          `Completed processing ${batchProcessor.files.length} documents with ${batchProcessor.failedFiles.length} errors.`
-        );
-      } else if (result === "cancelled") {
-        toast.info("Batch processing cancelled");
-      }
-    }
+    // On processing error
+    (error) => toast.error(error)
   );
 
-  const [extractionStrategy, setExtractionStrategyState] = useState<ExtractionStrategy>(ExtractionStrategy.FIRST_PAGE);
-
-  // Set up batch processor hook
-  const batchProcessor = useBatchProcessor({
+  const {
+    files,
+    currentFileIndex,
+    overallProgress,
+    processingError,
+    failedFiles,
+    handleFilesSelect,
+    handleRemoveFile,
+    startBatchProcessing,
+    cancelBatchProcessing,
+    onFileProcessed,
+    onFileError,
+  } = useBatchProcessor({
     processDocument,
     fileProgress,
     statusMessage,
     ocrLanguage,
   });
 
-  // Update extraction strategy in document processing hook when local state changes
-  const handleExtractionStrategyChange = useCallback((strategy: ExtractionStrategy) => {
-    setExtractionStrategyState(strategy);
-    setExtractionStrategy(strategy);
-  }, [setExtractionStrategy]);
+  const handleProcessStart = () => {
+    setIsProcessing(true);
+    startBatchProcessing();
+  };
 
-  // Handle starting the batch process
-  const handleProcessAllDocuments = useCallback(() => {
-    if (!batchProcessor.files.length || !selectedProject) return;
-    batchProcessor.startBatchProcessing();
-  }, [batchProcessor, selectedProject]);
+  const handleProcessCancel = () => {
+    toast.info(cancelBatchProcessing());
+  };
 
-  // Handle canceling the batch process
-  const handleCancelProcessing = useCallback(() => {
-    const message = batchProcessor.cancelBatchProcessing();
-    toast.info(message);
-  }, [batchProcessor]);
+  const handleProcessingComplete = () => {
+    setIsProcessing(false);
+    navigate("/documents"); // Ensure navigation after completion
+    toast.success("Batch processing complete");
+  };
+
+  // Get current file name for display
+  const currentFileName = files[currentFileIndex]?.name || "";
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Batch Upload</h1>
+      <h1 className="text-3xl font-bold">Batch Document Upload</h1>
       
       <Card>
         <CardHeader>
           <CardTitle>Upload Multiple Documents</CardTitle>
           <CardDescription>
-            Process multiple documents at once
+            Upload and process multiple documents in a batch
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            <ProjectSelector
-              selectedProject={selectedProject}
-              onChange={setSelectedProject}
-              disabled={batchProcessor.isProcessing}
+        <CardContent className="space-y-4">
+          <ProjectSelector
+            selectedProject={selectedProject}
+            onChange={setSelectedProject}
+            disabled={isProcessing}
+          />
+          
+          <MultiFileUploadArea
+            supportedTypes={supportedTypes}
+            files={files}
+            onFilesSelect={handleFilesSelect}
+            onRemoveFile={handleRemoveFile}
+            isDisabled={isProcessing}
+          />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ModelSelector
+              value={modelSelection}
+              onChange={setModelSelection}
+              disabled={isProcessing}
             />
             
-            <MultiFileUploadArea
-              supportedTypes={supportedTypes}
-              files={batchProcessor.files}
-              onFilesSelect={batchProcessor.handleFilesSelect}
-              onRemoveFile={batchProcessor.handleRemoveFile}
-              onError={(err) => toast.error(err)}
-              isDisabled={batchProcessor.isProcessing}
-              maxFiles={MAX_BATCH_FILES}
+            <LanguageSelector
+              value={ocrLanguage}
+              onChange={setOcrLanguage}
+              disabled={isProcessing}
             />
-
-            {batchProcessor.files.length > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">File count:</span>
-                <Badge variant="outline" className="ml-auto">
-                  {batchProcessor.files.length} of {MAX_BATCH_FILES} maximum
-                </Badge>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ModelSelector
-                value={modelSelection}
-                onChange={setModelSelection}
-                disabled={batchProcessor.isProcessing || batchProcessor.files.length === 0}
-              />
-              
-              <LanguageSelector
-                value={ocrLanguage}
-                onChange={setOcrLanguage}
-                disabled={batchProcessor.isProcessing || batchProcessor.files.length === 0}
-              />
-            </div>
-            
-            <ExtractionStrategySelector
-              value={extractionStrategy}
-              onChange={handleExtractionStrategyChange}
-              disabled={batchProcessor.isProcessing || batchProcessor.files.length === 0}
-            />
-            
-            <div className="flex gap-2">
-              <BatchProcessingControls 
-                isProcessing={batchProcessor.isProcessing}
-                fileCount={batchProcessor.files.length}
-                onStartProcessing={handleProcessAllDocuments}
-                onCancelProcessing={handleCancelProcessing}
-                disabled={!selectedProject}
-              />
-            </div>
-            
-            {/* Progress Display */}
-            <BatchProgressDisplay 
-              isProcessing={batchProcessor.isProcessing}
-              overallProgress={batchProcessor.overallProgress}
-              currentFileName={batchProcessor.files[batchProcessor.currentFileIndex]?.name || ""}
-              fileProgress={fileProgress}
-              statusMessage={statusMessage}
-              ocrLanguage={ocrLanguage}
-              processingError={batchProcessor.processingError}
-              failedFiles={batchProcessor.failedFiles}
-            />
-            
-            {/* Failed Files Display */}
-            {!batchProcessor.isProcessing && (
-              <FailedFilesDisplay 
-                failedFiles={batchProcessor.failedFiles}
-              />
-            )}
           </div>
+          
+          <ExtractionStrategySelector
+            value={extractionStrategy}
+            onChange={setExtractionStrategy}
+            disabled={isProcessing}
+          />
+          
+          <div className="flex flex-col md:flex-row gap-2">
+            <BatchProcessingControls
+              isProcessing={isProcessing}
+              fileCount={files.length}
+              onStartProcessing={handleProcessStart}
+              onCancelProcessing={handleProcessCancel}
+              disabled={!selectedProject}
+            />
+          </div>
+          
+          <BatchProgressDisplay
+            isProcessing={isProcessing}
+            overallProgress={overallProgress}
+            currentFileName={currentFileName}
+            fileProgress={fileProgress}
+            statusMessage={statusMessage}
+            ocrLanguage={ocrLanguage}
+            processingError={processingError}
+            failedFiles={failedFiles}
+          />
+          
+          <FailedFilesDisplay failedFiles={failedFiles} />
         </CardContent>
       </Card>
+
+      {/* View processed documents button */}
+      <div className="flex justify-end">
+        <Button 
+          variant="outline" 
+          onClick={() => navigate("/documents")}
+        >
+          View All Documents
+        </Button>
+      </div>
     </div>
   );
 };

@@ -1,8 +1,8 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button"; // Add missing Button import
+import { Button } from "@/components/ui/button";
 import { Document } from "@/types/document";
 import DocumentViewer from "./DocumentViewer";
 import DocumentsTable from "./documents/DocumentsTable";
@@ -33,6 +33,11 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
   const [documentsToDelete, setDocumentsToDelete] = useState<string[]>([]);
   const [multiDeleteDialogOpen, setMultiDeleteDialogOpen] = useState(false);
+
+  // Reset to first page when refreshTrigger changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [refreshTrigger]);
 
   const handleViewDocument = (document: Document) => {
     setSelectedDocument(document);
@@ -134,6 +139,7 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
         totalCount={totalCount}
       />
 
+      {/* Document viewer dialog */}
       <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
         <DialogContent className="max-w-4xl h-[80vh] p-0">
           {selectedDocument && (
@@ -142,6 +148,7 @@ const DocumentList = ({ refreshTrigger, limit = 10, projectId }: DocumentListPro
         </DialogContent>
       </Dialog>
 
+      {/* Delete confirmation dialog */}
       <DeleteConfirmDialog
         document={documentToDelete}
         isOpen={deleteDialogOpen}
