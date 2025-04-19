@@ -84,6 +84,11 @@ export type Database = {
         Row: {
           classification: string | null
           classification_text: string | null
+          content_markdown: string | null
+          content_structured: Json | null
+          confidence_score: number | null
+          extraction_complete: boolean
+          extraction_timestamp: string | null
           created_at: string | null
           extracted_text: string | null
           extraction_strategy: string | null
@@ -100,6 +105,11 @@ export type Database = {
         Insert: {
           classification?: string | null
           classification_text?: string | null
+          content_markdown?: string | null
+          content_structured?: Json | null
+          confidence_score?: number | null
+          extraction_complete?: boolean
+          extraction_timestamp?: string | null
           created_at?: string | null
           extracted_text?: string | null
           extraction_strategy?: string | null
@@ -116,6 +126,11 @@ export type Database = {
         Update: {
           classification?: string | null
           classification_text?: string | null
+          content_markdown?: string | null
+          content_structured?: Json | null
+          confidence_score?: number | null
+          extraction_complete?: boolean
+          extraction_timestamp?: string | null
           created_at?: string | null
           extracted_text?: string | null
           extraction_strategy?: string | null
@@ -137,6 +152,50 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      document_segments: {
+        Row: {
+          id: string
+          document_id: string
+          segment_type: string
+          segment_text: string
+          segment_markdown: string | null
+          segment_data: Json | null
+          position_data: Json | null
+          confidence_score: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          document_id: string
+          segment_type: string
+          segment_text: string
+          segment_markdown?: string | null
+          segment_data?: Json | null
+          position_data?: Json | null
+          confidence_score?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          document_id?: string
+          segment_type?: string
+          segment_text?: string
+          segment_markdown?: string | null
+          segment_data?: Json | null
+          position_data?: Json | null
+          confidence_score?: number | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_segments_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          }
         ]
       }
       extraction_variables: {
