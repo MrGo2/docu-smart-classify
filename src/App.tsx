@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -14,6 +13,9 @@ import Settings from "./pages/Settings";
 import ProjectsManagement from "./pages/ProjectsManagement";
 import PromptManagement from "./pages/PromptManagement";
 import NotFound from "./pages/NotFound";
+import { Home } from "@/pages/Home";
+import { DocumentUploader } from "@/components/upload/DocumentUploader";
+import { DocumentViewer } from "@/components/document-viewer/DocumentViewer";
 
 // Create a client
 const queryClient = new QueryClient();
@@ -35,6 +37,8 @@ const App = () => (
               <Route path="prompts" element={<PromptManagement />} />
               <Route path="settings" element={<Settings />} />
             </Route>
+            <Route path="/documents/upload" element={<DocumentUploader />} />
+            <Route path="/documents/:id" element={<DocumentViewer />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
