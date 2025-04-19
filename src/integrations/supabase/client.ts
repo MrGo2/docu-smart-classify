@@ -3,11 +3,38 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { env } from '@/lib/config/env';
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+// Validate Supabase configuration
+if (!env.supabase.url) {
+  throw new Error('Missing Supabase URL. Please check your environment variables.');
+}
+
+if (!env.supabase.anonKey) {
+  throw new Error('Missing Supabase anonymous key. Please check your environment variables.');
+}
+
+console.log('Initializing Supabase client with URL:', env.supabase.url);
 
 // Create Supabase client with environment variables
 export const supabase = createClient<Database>(
   env.supabase.url,
-  env.supabase.anonKey
+  env.supabase.anonKey,
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+    },
+  }
 );
+
+// Test the connection
+(async () => {
+  try {
+    const { error } = await supabase.from('documents').select('id').limit(1).single();
+    if (error) throw error;
+    console.log('Supabase connection successful');
+  } catch (error) {
+    console.error('Supabase connection error:', error);
+    // Re-throw to ensure errors are visible in the console
+    throw error;
+  }
+})();
